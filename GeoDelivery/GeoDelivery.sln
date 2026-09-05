@@ -1,0 +1,24 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend", "backend", "{76E3051F-FF66-4FBE-B721-DB5521FC30C6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{B85D513D-A665-4F7E-AF46-A466F2687639}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog", "Catalog\Catalog.csproj", "{07BF8FA7-29BF-45EA-B13B-0DAFA0F0C31E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B85D513D-A665-4F7E-AF46-A466F2687639} = {76E3051F-FF66-4FBE-B721-DB5521FC30C6}
+		{07BF8FA7-29BF-45EA-B13B-0DAFA0F0C31E} = {B85D513D-A665-4F7E-AF46-A466F2687639}
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{07BF8FA7-29BF-45EA-B13B-0DAFA0F0C31E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07BF8FA7-29BF-45EA-B13B-0DAFA0F0C31E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07BF8FA7-29BF-45EA-B13B-0DAFA0F0C31E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07BF8FA7-29BF-45EA-B13B-0DAFA0F0C31E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
