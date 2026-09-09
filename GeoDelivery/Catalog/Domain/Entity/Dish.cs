@@ -1,4 +1,4 @@
-﻿namespace Catalog.Domain;
+﻿namespace Catalog.Domain.Entity;
 
 public class Dish(Guid restaurantId, Guid categoryId, string name, decimal price)  
 {  

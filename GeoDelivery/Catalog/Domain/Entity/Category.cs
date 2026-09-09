@@ -1,4 +1,4 @@
-﻿namespace Catalog.Domain;
+﻿namespace Catalog.Domain.Entity;
 
 public class Category(Guid restaurantId, string name)  
 {  
