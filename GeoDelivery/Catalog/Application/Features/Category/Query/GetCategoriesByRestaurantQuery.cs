@@ -1,4 +1,5 @@
-﻿using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
@@ -23,8 +24,8 @@ public class GetCategoriesByRestaurantQueryHandler(
         if (restaurantCheck is null)
         {
             logger.LogWarning($"Restaurant with ID {request.RestaurantId} not found.");
-            
-            return new GetCategoriesByRestaurantResponse(null, $"Restaurant with ID {request.RestaurantId} not found.");
+
+            throw new NotFoundException($"Restaurant with ID {request.RestaurantId} not found.");
         }
         
         var categories = await context.Categories

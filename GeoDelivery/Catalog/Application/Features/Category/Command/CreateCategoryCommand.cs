@@ -1,4 +1,5 @@
-﻿using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
@@ -24,8 +25,8 @@ public class CreateCategoryCommandHandler(
         if (restaurantCheck is null)
         {
             logger.LogWarning($"Restaurant with ID {request.RestaurantId} not found.");
-            
-            return new CreateCategoryResponse(null, $"Restaurant with ID {request.RestaurantId} not found.");
+
+            throw new NotFoundException($"Restaurant with ID {request.RestaurantId} not found.");
         }
         
         var category = new Domain.Entity.Category(request.RestaurantId, request.Name);

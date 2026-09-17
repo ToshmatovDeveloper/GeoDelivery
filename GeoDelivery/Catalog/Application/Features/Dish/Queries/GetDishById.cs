@@ -1,4 +1,5 @@
-﻿using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
@@ -23,7 +24,7 @@ public class GetDishByIdHandler(
         if (dish is null)
         {
             logger.LogInformation("Dish {Id} not found.", query.Id);
-            return new GetDishByIdResponse(null, "Dish not found.");
+            throw new NotFoundException( $"Dish {query.Id} not found.");
         }
 
         var dto = new DishDto(dish.Id, dish.RestaurantId, dish.CategoryId, dish.Name, dish.Price, dish.IsAvailable);
