@@ -1,4 +1,5 @@
-﻿using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
@@ -28,6 +29,12 @@ public class GetCategoryOfDishQueryHandler(
             .Where(cd => cd.Dish.Id == request.DishId)
             .Select(cd => new CategoryDto(cd.Category.Id, cd.Category.RestaurantId, cd.Category.Name))
             .FirstOrDefaultAsync(cancellationToken);
+        
+        if (category is null)
+        {
+            logger.LogWarning("Category for dish {DishId} in restaurant {RestaurantId} not found", request.DishId, request.RestaurantId);
+            throw new NotFoundException($"Category for dish with ID {request.DishId} in restaurant {request.RestaurantId} was not found.");
+        }
         
         return new GetCategoryOfDishResponse(category,  "Category fetched successfully.");
     }

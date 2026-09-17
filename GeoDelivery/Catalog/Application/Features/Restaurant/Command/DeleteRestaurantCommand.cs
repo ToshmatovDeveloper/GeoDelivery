@@ -1,4 +1,5 @@
-﻿using Catalog.Infrastructure;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +21,7 @@ public class DeleteRestaurantCommandHandler(
 
         if (restaurant is null)
         {
-            return new DeleteRestaurantResponse(false, "Restaurant not found.");
+            throw new NotFoundException($"Restaurant {command.RestaurantId} not found.");
         }
 
         dbContext.Restaurants.Remove(restaurant);

@@ -1,4 +1,5 @@
-﻿using Catalog.Infrastructure;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -19,7 +20,7 @@ public class MakeDishUnavailableCommandHandler(
 
         if (dish is null)
         {
-            return new MakeDishUnavailableResponse(false, "Dish not found.");
+            throw new NotFoundException($"Dish with ID {command.DishId} not found.");
         }
 
         dish.IsAvailable = false;

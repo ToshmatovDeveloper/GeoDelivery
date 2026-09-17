@@ -1,4 +1,5 @@
-﻿using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
@@ -22,7 +23,7 @@ public class GetRestaurantByIdQueryHandler(
 
         if (restaurant is null)
         {
-            return new GetRestaurantByIdResponse(null, "Restaurant not found.");
+            throw new NotFoundException($"Restaurant {query.RestaurantId} not found.");
         }
 
         var dto = new RestaurantDto(restaurant.Id, restaurant.Name, restaurant.Description, restaurant.IsActive);

@@ -1,4 +1,5 @@
-﻿using Catalog.Infrastructure;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -21,7 +22,8 @@ public class DeleteCategoryCommandHandler(
         if (category is null || category.RestaurantId != request.RestaurantId)
         {
             logger.LogWarning($"Category with ID {request.CategoryId} not found for restaurant {request.RestaurantId}.");
-            return new DeleteCategoryResponse(false, $"Category with ID {request.CategoryId} not found for restaurant {request.RestaurantId}.");
+            throw new NotFoundException(
+                $"Category with ID {request.CategoryId} not found for restaurant {request.RestaurantId}.");
         }
         
         context.Categories.Remove(category);

@@ -23,6 +23,11 @@ public class GetListOfAllCategoriesQueryHandler(
             .Select(c => new CategoryDto(c.Id, c.RestaurantId, c.Name))
             .ToListAsync(cancellationToken);
 
+        if (categories.Count == 0)
+        {
+            logger.LogInformation("No categories found in the database.");
+        }
+
         return new GetListOfAllCategoriesResponse(categories, "Categories fetched successfully.");
     }
 }

@@ -1,4 +1,5 @@
-﻿using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.CustomExceptions;
+using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
@@ -34,7 +35,7 @@ public class GetDishesByRestaurantIdQueryHandler(
         {
             logger.LogInformation("No dishes found.");
             
-            return new GetDishListByRestaurantIdResponse(null, "No dishes found for the specified restaurant.");
+            throw new NotFoundException( $"No dishes found.");
         }
 
         logger.LogInformation("Dishes found.");
