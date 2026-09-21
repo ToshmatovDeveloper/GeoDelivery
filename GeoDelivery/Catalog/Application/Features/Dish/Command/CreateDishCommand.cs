@@ -1,10 +1,9 @@
 ﻿using Catalog.Application.CustomExceptions;
-using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
+using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Dish.Command;
 
@@ -14,13 +13,23 @@ public record CreateDishResponse(DishDto Dto, string Message);
 
 public class CreateDishCommandHandler(
     CatalogDbContext dbContext,
+    IValidator<CreateDishCommand> validator,
     ILogger<CreateDishCommandHandler> logger) : IRequestHandler<CreateDishCommand, CreateDishResponse>
 {
     public async Task<CreateDishResponse> Handle(CreateDishCommand command, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Validating create dish command for dish {Name}...", command.Name);
+
+        var validationResult = await validator.ValidateAsync(command, cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            logger.LogWarning("Validation failed for CreateDishCommand with {ErrorCount} errors.", validationResult.Errors.Count);
+            throw new ValidationException(validationResult.Errors);
+        }
+
         logger.LogInformation("Creating dish {Name} for restaurant {RestaurantId}...", command.Name, command.RestaurantId);
 
-        // Проверяем существование ресторана
         var restaurantExists = await dbContext.Restaurants
             .AnyAsync(r => r.Id == command.RestaurantId, cancellationToken);
 
