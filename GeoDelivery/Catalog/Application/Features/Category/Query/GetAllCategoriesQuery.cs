@@ -1,19 +1,22 @@
-﻿using Catalog.Application.Features.Category.Command;
-using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.Caching;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Category.Query;
 
-public record GetAllCategoriesQuery() : IRequest<GetListOfAllCategoriesResponse>;
+public record GetAllCategoriesQuery() : IRequest<GetListOfAllCategoriesResponse>, ICachableQuery
+{
+    public string CacheKey => "categories:all";
+}
+
 public record GetListOfAllCategoriesResponse(IEnumerable<CategoryDto> Categories, string Message);
 
 public class GetListOfAllCategoriesQueryHandler(
     CatalogDbContext context, 
-    ILogger<DeleteCategoryCommandHandler> logger) : IRequestHandler<GetAllCategoriesQuery, GetListOfAllCategoriesResponse>
+    ILogger<GetListOfAllCategoriesQueryHandler> logger) 
+    : IRequestHandler<GetAllCategoriesQuery, GetListOfAllCategoriesResponse>
 {
     public async Task<GetListOfAllCategoriesResponse> Handle(GetAllCategoriesQuery request, CancellationToken cancellationToken)
     {

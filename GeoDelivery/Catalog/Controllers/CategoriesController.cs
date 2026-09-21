@@ -19,9 +19,9 @@ public class CategoriesController(IMediator mediator) : ControllerBase
         
         var response = await mediator.Send(command, token);
 
-        if (response.Dto is  null) 
+        if (response.Dto is null) 
         {
-            return BadRequest(new {response.Message});
+            return BadRequest(new { response.Message });
         }
         
         return Ok(response);
@@ -36,7 +36,7 @@ public class CategoriesController(IMediator mediator) : ControllerBase
 
         if (response.Categories is null)
         {
-            return NotFound(new {response.Message});
+            return NotFound(new { response.Message });
         }
         
         return Ok(response);
@@ -71,7 +71,7 @@ public class CategoriesController(IMediator mediator) : ControllerBase
         Guid categoryId,
         CancellationToken token)
     {
-        var command = new DeleteCategoryCommand(categoryId,  restaurantId);
+        var command = new DeleteCategoryCommand(categoryId, restaurantId);
 
         var response = await mediator.Send(command, token);
 

@@ -1,14 +1,17 @@
-﻿using Catalog.Application.CustomExceptions;
-using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.Caching;
+using Catalog.Application.CustomExceptions;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Category.Query;
 
-public record GetCategoryOfDishQuery(Guid DishId, Guid RestaurantId) : IRequest<GetCategoryOfDishResponse>;
+public record GetCategoryOfDishQuery(Guid DishId, Guid RestaurantId) 
+    : IRequest<GetCategoryOfDishResponse>, ICachableQuery
+{
+    public string CacheKey => $"category:restaurant:{RestaurantId}:dish:{DishId}";
+}
 
 public record GetCategoryOfDishResponse(CategoryDto? Category, string Message);
 
@@ -18,7 +21,7 @@ public class GetCategoryOfDishQueryHandler(
 {
     public async Task<GetCategoryOfDishResponse> Handle(GetCategoryOfDishQuery request, CancellationToken cancellationToken)
     {
-        logger.LogInformation($"Fetching category for dish {request.DishId} in restaurant {request.RestaurantId}");
+        logger.LogInformation("Fetching category for dish {DishId} in restaurant {RestaurantId}", request.DishId, request.RestaurantId);
         
         var category = await catalogDbContext.Categories
             .Where(c => c.RestaurantId == request.RestaurantId)
@@ -36,6 +39,6 @@ public class GetCategoryOfDishQueryHandler(
             throw new NotFoundException($"Category for dish with ID {request.DishId} in restaurant {request.RestaurantId} was not found.");
         }
         
-        return new GetCategoryOfDishResponse(category,  "Category fetched successfully.");
+        return new GetCategoryOfDishResponse(category, "Category fetched successfully.");
     }
 }

@@ -1,14 +1,18 @@
-﻿using Catalog.Application.CustomExceptions;
-using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.Caching;
+using Catalog.Application.CustomExceptions;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Category.Query;
 
-public record GetCategoriesByRestaurantQuery(Guid RestaurantId) : IRequest<GetCategoriesByRestaurantResponse>;
+public record GetCategoriesByRestaurantQuery(Guid RestaurantId) 
+    : IRequest<GetCategoriesByRestaurantResponse>, ICachableQuery
+{
+    public string CacheKey => $"categories:restaurant:{RestaurantId}";
+}
+
 public record GetCategoriesByRestaurantResponse(IEnumerable<CategoryDto>? Categories, string Message);
 
 public class GetCategoriesByRestaurantQueryHandler(
@@ -17,13 +21,13 @@ public class GetCategoriesByRestaurantQueryHandler(
 {
     public async Task<GetCategoriesByRestaurantResponse> Handle(GetCategoriesByRestaurantQuery request, CancellationToken cancellationToken)
     {
-        logger.LogInformation($"Fetching categories for restaurant {request.RestaurantId}");
+        logger.LogInformation("Fetching categories for restaurant {request.RestaurantId}");
         
         var restaurantCheck = await context.Restaurants.FindAsync(request.RestaurantId);
         
         if (restaurantCheck is null)
         {
-            logger.LogWarning($"Restaurant with ID {request.RestaurantId} not found.");
+            logger.LogWarning("Restaurant with ID {request.RestaurantId} not found.");
 
             throw new NotFoundException($"Restaurant with ID {request.RestaurantId} not found.");
         }

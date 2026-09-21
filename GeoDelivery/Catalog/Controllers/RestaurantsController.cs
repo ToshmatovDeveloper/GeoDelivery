@@ -1,7 +1,7 @@
 ﻿using Catalog.Application.Features.Restaurant.Command;
 using Catalog.Application.Features.Restaurant.Queries;
-using Catalog.Domain.DTO_s;
 using Catalog.Domain.DTO_s.Create;
+using Catalog.Domain.DTO_s.Get;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,7 +22,7 @@ public class RestaurantsController(IMediator mediator) : ControllerBase
 
         if (response.Dto == null)
         {
-            return BadRequest(new {response.Message});
+            return BadRequest(new { response.Message });
         }
         
         return Ok(response.Dto);
@@ -32,10 +32,9 @@ public class RestaurantsController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var query = new GetRestaurantByIdQuery(id);
-        
         var response = await mediator.Send(query, cancellationToken);
 
-        if (response.Dto is null)
+        if (ResponseDtoIsNull(response.Dto))
         {
             return NotFound(new { response.Message });
         }
@@ -70,4 +69,6 @@ public class RestaurantsController(IMediator mediator) : ControllerBase
 
         return Ok(response);
     }
+
+    private static bool ResponseDtoIsNull(RestaurantDto? dto) => dto is null;
 }

@@ -1,14 +1,16 @@
-﻿using Catalog.Application.CustomExceptions;
-using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.Caching;
+using Catalog.Application.CustomExceptions;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Dish.Queries;
 
-public record GetDishByNameQuery(string Name) : IRequest<GetDishByNameResponse>;
+public record GetDishByNameQuery(string Name) : IRequest<GetDishByNameResponse>, ICachableQuery
+{
+    public string CacheKey => $"dish:name:{Name.ToLowerInvariant()}";
+}
 
 public record GetDishByNameResponse(DishDto? Dto, string Message);
 
@@ -26,7 +28,6 @@ public class GetDishByNameQueryHandler(
         if (dish is null)
         {
             logger.LogInformation("Dish {Name} not found.", request.Name);
-            
             throw new NotFoundException($"Dish {request.Name} not found.");
         }
 

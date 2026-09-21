@@ -1,13 +1,15 @@
-﻿using Catalog.Application.CustomExceptions;
-using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.Caching;
+using Catalog.Application.CustomExceptions;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Restaurant.Queries;
 
-public record GetRestaurantByIdQuery(Guid RestaurantId) : IRequest<GetRestaurantByIdResponse>;
+public record GetRestaurantByIdQuery(Guid RestaurantId) : IRequest<GetRestaurantByIdResponse>, ICachableQuery
+{
+    public string CacheKey => $"restaurant:{RestaurantId}";
+}
 
 public record GetRestaurantByIdResponse(RestaurantDto? Dto, string Message);
 
