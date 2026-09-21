@@ -1,5 +1,7 @@
 ﻿using Catalog.Application.Features.Restaurant.Command;
+using Catalog.Application.Validation;
 using Catalog.Infrastructure;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Web.Middlewares.Exceptions;
 
@@ -9,6 +11,7 @@ public static class AppBuilderExtensions
 {
     public static IServiceCollection AddMyCustomMiddlewares(this IServiceCollection services)
     {
+        services.AddExceptionHandler<BadRequestExceptionHandler>();
         services.AddExceptionHandler<NotFoundExceptionHandler>();
         services.AddExceptionHandler<GlobalExceptionHandler>();
         
@@ -26,7 +29,14 @@ public static class AppBuilderExtensions
 
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CreateRestaurantCommand>());
+        services.AddMediatR(cfg => 
+        {
+            cfg.RegisterServicesFromAssemblyContaining<CreateRestaurantCommand>();
+            
+            cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+        });
+
+        services.AddValidatorsFromAssemblyContaining<CreateRestaurantCommand>();
         
         return services;
     }
