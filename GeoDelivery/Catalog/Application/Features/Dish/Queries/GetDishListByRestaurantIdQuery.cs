@@ -1,14 +1,16 @@
-﻿using Catalog.Application.CustomExceptions;
-using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.Caching;
+using Catalog.Application.CustomExceptions;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Dish.Queries;
 
-public record GetDishListByRestaurantIdQuery(Guid RestaurantId) : IRequest<GetDishListByRestaurantIdResponse>;
+public record GetDishListByRestaurantIdQuery(Guid RestaurantId) : IRequest<GetDishListByRestaurantIdResponse>, ICachableQuery
+{
+    public string CacheKey => $"dishes:restaurant:{RestaurantId}";
+}
 
 public record GetDishListByRestaurantIdResponse(IEnumerable<DishDto>? Dishes, string Message);
 
@@ -18,7 +20,7 @@ public class GetDishesByRestaurantIdQueryHandler(
 {
     public async Task<GetDishListByRestaurantIdResponse> Handle(GetDishListByRestaurantIdQuery request, CancellationToken cancellationToken)
     {
-        logger.LogInformation($"Fetching dishes for restaurant {request.RestaurantId}...");
+        logger.LogInformation("Fetching dishes for restaurant {RestaurantId}...", request.RestaurantId);
         
         var dishes = await dbContext.Dishes
             .Where(d => d.RestaurantId == request.RestaurantId)
@@ -34,8 +36,7 @@ public class GetDishesByRestaurantIdQueryHandler(
         if (!dishes.Any())
         {
             logger.LogInformation("No dishes found.");
-            
-            throw new NotFoundException( $"No dishes found.");
+            throw new NotFoundException("No dishes found.");
         }
 
         logger.LogInformation("Dishes found.");

@@ -25,7 +25,6 @@ public class DishesController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> GetById(Guid restaurantId, Guid id, CancellationToken cancellationToken)
     {
         var query = new GetDishById(id);
-        
         var response = await mediator.Send(query, cancellationToken);
 
         if (response is null || response.Dto.RestaurantId != restaurantId)
@@ -40,7 +39,6 @@ public class DishesController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> GetByName(string name, CancellationToken cancellationToken)
     {
         var query = new GetDishByNameQuery(name);
-        
         var response = await mediator.Send(query, cancellationToken);
 
         if (response.Dto is null)
@@ -55,7 +53,6 @@ public class DishesController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> GetByRestaurant(Guid restaurantId, CancellationToken cancellationToken)
     {
         var query = new GetDishListByRestaurantIdQuery(restaurantId);
-        
         var response = await mediator.Send(query, cancellationToken);
 
         if (response.Dishes is null)

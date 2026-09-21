@@ -10,7 +10,9 @@ builder.Services
     .AddMyCustomMiddlewares()
     .AddDatabase(builder.Configuration)
     .AddApplication()
-    .AddPresentation();
+    .AddPresentation()
+    .AddMyCustomConfiguration(builder.Configuration)
+    .AddRedis(builder.Configuration);
 
 var app = builder.Build();
 

@@ -1,13 +1,15 @@
-﻿using Catalog.Application.CustomExceptions;
-using Catalog.Domain.DTO_s;
+﻿using Catalog.Application.Caching;
+using Catalog.Application.CustomExceptions;
 using Catalog.Domain.DTO_s.Get;
 using Catalog.Infrastructure;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Dish.Queries;
 
-public record GetDishById(Guid Id) : IRequest<GetDishByIdResponse>;
+public record GetDishById(Guid Id) : IRequest<GetDishByIdResponse>, ICachableQuery
+{
+    public string CacheKey => $"dish:{Id}";
+}
 
 public record GetDishByIdResponse(DishDto Dto, string Message);
 
@@ -24,7 +26,7 @@ public class GetDishByIdHandler(
         if (dish is null)
         {
             logger.LogInformation("Dish {Id} not found.", query.Id);
-            throw new NotFoundException( $"Dish {query.Id} not found.");
+            throw new NotFoundException($"Dish {query.Id} not found.");
         }
 
         var dto = new DishDto(dish.Id, dish.RestaurantId, dish.CategoryId, dish.Name, dish.Price, dish.IsAvailable);
@@ -33,4 +35,3 @@ public class GetDishByIdHandler(
         return new GetDishByIdResponse(dto, "Dish fetched successfully.");
     }
 }
-
