@@ -1,4 +1,5 @@
-﻿using Catalog.Application.Caching;
+﻿using Auth.Infrastructure;
+using Catalog.Application.Caching;
 using Catalog.Application.Features.Restaurant.Command;
 using Catalog.Application.Settings;
 using Catalog.Application.Validation;
@@ -24,7 +25,7 @@ public static class AppBuilderExtensions
     
     public static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("CatalogDbConnectionString");
+        var connectionString = configuration.GetConnectionString("DefaultConnectionString");
         services.AddDbContext<CatalogDbContext>(options =>
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
         
@@ -73,6 +74,16 @@ public static class AppBuilderExtensions
         });
 
         services.AddScoped<RedisCacheService>();
+
+        return services;
+    }
+    
+    public static IServiceCollection AddAuthDatabase(this IServiceCollection services, IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("DefaultConnectionString");
+        
+        services.AddDbContext<AuthDbContext>(options =>
+            options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 
         return services;
     }

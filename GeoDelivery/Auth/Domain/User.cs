@@ -4,6 +4,8 @@ namespace Auth.Domain;
 
 public sealed class User : IdentityUser<Guid>
 {
+    public User() { }
+    
     public User(string name, string email)
     {
         Id = Guid.CreateVersion7();
