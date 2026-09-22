@@ -12,7 +12,8 @@ builder.Services
     .AddApplication()
     .AddPresentation()
     .AddMyCustomConfiguration(builder.Configuration)
-    .AddRedis(builder.Configuration);
+    .AddRedis(builder.Configuration)
+    .AddAuthDatabase(builder.Configuration);
 
 var app = builder.Build();
 
