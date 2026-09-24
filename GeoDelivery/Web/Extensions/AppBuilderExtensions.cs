@@ -1,4 +1,5 @@
-﻿using Auth.Infrastructure;
+﻿using Auth.Application.Settings;
+using Auth.Infrastructure;
 using Catalog.Application.Caching;
 using Catalog.Application.Features.Restaurant.Command;
 using Catalog.Application.Settings;
@@ -61,6 +62,7 @@ public static class AppBuilderExtensions
         IConfiguration configuration)
     {
         services.Configure<CacheSettings>(configuration.GetSection("CacheSettings"));
+        services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
         
         return services;
     }
