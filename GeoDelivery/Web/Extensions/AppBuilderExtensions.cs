@@ -1,4 +1,6 @@
-﻿using Auth.Application.Settings;
+﻿using Auth.Application.Features;
+using Auth.Application.Settings;
+using Auth.Domain;
 using Auth.Infrastructure;
 using Catalog.Application.Caching;
 using Catalog.Application.Features.Restaurant.Command;
@@ -7,9 +9,11 @@ using Catalog.Application.Validation;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
 using FluentValidation;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using Web.Middlewares.Exceptions;
+using Role = StackExchange.Redis.Role;
 
 namespace Web.Extensions;
 
@@ -17,6 +21,10 @@ public static class AppBuilderExtensions
 {
     public static IServiceCollection AddMyCustomMiddlewares(this IServiceCollection services)
     {
+        services.AddExceptionHandler<UserNameIsAlreadyInUseExceptionHandler>();
+        services.AddExceptionHandler<EmailIsAlreadyInUseExceptionHandler>();
+        services.AddExceptionHandler<FailedAddUserRoleExceptionHandler>();
+        services.AddExceptionHandler<UserCreateFailedExceptionHandler>();
         services.AddExceptionHandler<BadRequestExceptionHandler>();
         services.AddExceptionHandler<NotFoundExceptionHandler>();
         services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -27,8 +35,15 @@ public static class AppBuilderExtensions
     public static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnectionString");
+    
         services.AddDbContext<CatalogDbContext>(options =>
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+
+        services.AddDbContext<AuthDbContext>(
+            options => options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+
+        services.AddIdentity<User, Role>()
+            .AddEntityFrameworkStores<AuthDbContext>();
         
         return services;
     }
@@ -38,6 +53,7 @@ public static class AppBuilderExtensions
         services.AddMediatR(cfg => 
         {
             cfg.RegisterServicesFromAssemblyContaining<CreateRestaurantCommand>();
+            cfg.RegisterServicesFromAssemblyContaining<UserRegisterCommand>();
             
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             cfg.AddOpenBehavior(typeof(CachingBehavior<,>));
