@@ -2,4 +2,11 @@
 
 namespace Auth.Domain;
 
-public class Role(string name) : IdentityRole<Guid>(name);
+public sealed class Role : IdentityRole<Guid>
+{
+    public Role() { }
+    
+    public Role(string name) : base(name)
+    {
+    }
+}
