@@ -9,11 +9,10 @@ using Catalog.Application.Validation;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
 using FluentValidation;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using Web.Middlewares.Exceptions;
-using Role = StackExchange.Redis.Role;
+using Role = Auth.Domain.Role;
 
 namespace Web.Extensions;
 
@@ -102,6 +101,8 @@ public static class AppBuilderExtensions
         
         services.AddDbContext<AuthDbContext>(options =>
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+
+        services.AddScoped<TokenProvider>();
 
         return services;
     }
