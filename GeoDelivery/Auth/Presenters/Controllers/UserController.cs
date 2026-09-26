@@ -20,4 +20,12 @@ public class UserController(
 
         return Ok(result);
     }
+    
+    [AllowAnonymous]
+    [HttpPost("login")]
+    public async Task<IActionResult> UserLogin(UserLoginCommand command, CancellationToken ct)
+    {
+        var result = await mediator.Send(command, ct);
+        return Ok(result);
+    }
 }

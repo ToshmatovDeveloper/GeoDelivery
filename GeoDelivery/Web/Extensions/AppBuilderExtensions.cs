@@ -24,6 +24,7 @@ public static class AppBuilderExtensions
         services.AddExceptionHandler<EmailIsAlreadyInUseExceptionHandler>();
         services.AddExceptionHandler<FailedAddUserRoleExceptionHandler>();
         services.AddExceptionHandler<UserCreateFailedExceptionHandler>();
+        services.AddExceptionHandler<UnauthorizedExceptionHandler>();
         services.AddExceptionHandler<BadRequestExceptionHandler>();
         services.AddExceptionHandler<NotFoundExceptionHandler>();
         services.AddExceptionHandler<GlobalExceptionHandler>();
