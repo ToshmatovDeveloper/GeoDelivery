@@ -28,4 +28,12 @@ public class UserController(
         var result = await mediator.Send(command, ct);
         return Ok(result);
     }
+    
+    [AllowAnonymous]
+    [HttpPost("refresh")]
+    public async Task<IActionResult> UserLoginWithRefreshToken(RefreshTokenCommand command, CancellationToken ct)
+    {
+        var result = await mediator.Send(command, ct);
+        return Ok(result);
+    } 
 }
