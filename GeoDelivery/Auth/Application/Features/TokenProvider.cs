@@ -49,4 +49,66 @@ public class TokenProvider(IOptionsMonitor<JwtSettings> options)
     {
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     }
+
+    public string GenerateAccessTokenFromRefreshToken(string refreshToken, string refreshSecretKey, IList<string> roles)
+    {
+        var refreshKey = Encoding.UTF8.GetBytes(refreshSecretKey);
+
+        var validationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(refreshKey),
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+        
+        var handler = new JsonWebTokenHandler();
+
+        try
+        {
+            var validationResult = handler.ValidateToken(refreshToken, validationParameters);
+
+            if (!validationResult.IsValid)
+            {
+                throw new SecurityTokenException("Invalid or expired refresh token");
+            }
+            
+            var userId = validationResult.ClaimsIdentity.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                         ?? validationResult.ClaimsIdentity.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new SecurityTokenException("The token is missing the user identifier.");
+            }
+            
+            var accessClaims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, userId),
+            };
+
+            foreach (var role in roles)
+            {
+                accessClaims.Add(new Claim(ClaimTypes.Role, role));
+            }
+            
+            var accessKey = Encoding.UTF8.GetBytes(options.CurrentValue.Secret);
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(accessClaims),
+                Expires = DateTime.UtcNow.AddMinutes(options.CurrentValue.ExpirationInMinutes),
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(accessKey),
+                    SecurityAlgorithms.HmacSha256Signature) 
+            };
+
+            return handler.CreateToken(tokenDescriptor);
+        }
+        catch (Exception ex)
+        {
+            throw new SecurityTokenException("Error validating or generating token", ex);
+        }
+    }
 }
