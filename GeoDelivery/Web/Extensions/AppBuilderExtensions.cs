@@ -1,4 +1,5 @@
-﻿using Auth.Application.Features;
+﻿using Auth.Application.BackgroundServices;
+using Auth.Application.Features;
 using Auth.Application.Settings;
 using Auth.Domain;
 using Auth.Infrastructure;
@@ -60,6 +61,8 @@ public static class AppBuilderExtensions
         });
 
         services.AddValidatorsFromAssemblyContaining<CreateRestaurantCommand>();
+        
+        services.AddHostedService<RefreshTokenCleaner>();
         
         return services;
     }
