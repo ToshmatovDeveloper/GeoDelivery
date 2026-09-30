@@ -3,6 +3,9 @@ using System.Security.Cryptography;
 using System.Text;
 using Auth.Application.Settings;
 using Auth.Domain;
+using Auth.Infrastructure;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -109,6 +112,28 @@ public class TokenProvider(IOptionsMonitor<JwtSettings> options)
         catch (Exception ex)
         {
             throw new SecurityTokenException("Error validating or generating token", ex);
+        }
+    }
+    
+    public record CleanOldTokensCommand : IRequest<bool>;
+
+    public class CleanOldTokensCommandHandler(AuthDbContext db) : IRequestHandler<CleanOldTokensCommand, bool>
+    {
+        public async Task<bool> Handle(CleanOldTokensCommand request, CancellationToken cancellationToken)
+        {
+            var latestTokenIds = await db.RefreshTokens
+                .GroupBy(rt => rt.UserId)
+                .Select(g => g.OrderByDescending(rt => rt.CreatedOn).Select(rt => rt.Id).FirstOrDefault())
+                .ToListAsync(cancellationToken);
+
+            if (latestTokenIds.Count == 0) 
+                return false;
+
+            var deletedCount = await db.RefreshTokens
+                .Where(rt => !latestTokenIds.Contains(rt.Id))
+                .ExecuteDeleteAsync(cancellationToken);
+
+            return true;
         }
     }
 }
