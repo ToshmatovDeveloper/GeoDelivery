@@ -1,4 +1,6 @@
-﻿using Auth.Application.BackgroundServices;
+﻿using System.Security.Claims;
+using System.Text;
+using Auth.Application.BackgroundServices;
 using Auth.Application.Features;
 using Auth.Application.Settings;
 using Auth.Domain;
@@ -10,7 +12,9 @@ using Catalog.Application.Validation;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using Web.Middlewares.Exceptions;
 using Role = Auth.Domain.Role;
@@ -107,6 +111,41 @@ public static class AppBuilderExtensions
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 
         services.AddScoped<TokenProvider>();
+
+        return services;
+    }
+    
+    public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
+    {
+        var jwtSection = configuration.GetSection("JwtSettings");
+        var secretKey = jwtSection["Secret"]!;
+        var issuer = jwtSection["Issuer"];
+        var audience = jwtSection["Audience"];
+
+        services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.RequireHttpsMetadata = false;
+                options.SaveToken = true;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+                    ValidateIssuer = !string.IsNullOrEmpty(issuer),
+                    ValidIssuer = issuer,
+                    ValidateAudience = !string.IsNullOrEmpty(audience),
+                    ValidAudience = audience,
+                    ClockSkew = TimeSpan.Zero,
+            
+                    RoleClaimType = ClaimTypes.Role 
+                };
+            });
+
+        services.AddAuthorization();
 
         return services;
     }
