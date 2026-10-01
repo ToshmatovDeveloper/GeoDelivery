@@ -13,13 +13,18 @@ builder.Services
     .AddPresentation()
     .AddMyCustomConfiguration(builder.Configuration)
     .AddRedis(builder.Configuration)
-    .AddAuthDatabase(builder.Configuration);
+    .AddAuthDatabase(builder.Configuration)
+    .AddJwtAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseSwagger();
 app.UseSwaggerUI();
+
+app.UseAuthentication();
+
+app.UseAuthorization();
 
 app.MapControllers();
 

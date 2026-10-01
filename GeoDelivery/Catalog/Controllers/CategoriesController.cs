@@ -2,6 +2,7 @@
 using Catalog.Application.Features.Category.Query;
 using Catalog.Domain.DTO_s.Create;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Catalog.Controllers;
@@ -11,6 +12,7 @@ namespace Catalog.Controllers;
 public class CategoriesController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create(
         [FromBody] CreateCategoryDto dto,
         CancellationToken token)
@@ -28,6 +30,7 @@ public class CategoriesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetByRestaurant(Guid restaurantId, CancellationToken token)
     {
         var query = new GetCategoriesByRestaurantQuery(restaurantId);
@@ -43,6 +46,7 @@ public class CategoriesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("/api/categories")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAllCategories(CancellationToken token)
     {
         var query = new GetAllCategoriesQuery();
@@ -53,6 +57,7 @@ public class CategoriesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("dishes/{dishId:guid}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetCategoryOfDish(
         Guid restaurantId,
         Guid dishId,
@@ -66,6 +71,7 @@ public class CategoriesController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{categoryId:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(
         Guid restaurantId,
         Guid categoryId,

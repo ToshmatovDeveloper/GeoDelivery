@@ -3,6 +3,7 @@ using Catalog.Application.Features.Restaurant.Queries;
 using Catalog.Domain.DTO_s.Create;
 using Catalog.Domain.DTO_s.Get;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Catalog.Controllers;
@@ -12,6 +13,7 @@ namespace Catalog.Controllers;
 public class RestaurantsController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create(
         CreateRestaurantDto dto,
         CancellationToken cancellationToken)
@@ -29,6 +31,7 @@ public class RestaurantsController(IMediator mediator) : ControllerBase
     }
     
     [HttpGet("{id:guid}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
         var query = new GetRestaurantByIdQuery(id);
@@ -43,6 +46,7 @@ public class RestaurantsController(IMediator mediator) : ControllerBase
     }
     
     [HttpGet("by-name/{name}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetByName(string name, CancellationToken cancellationToken)
     {
         var query = new GetRestaurantByNameQuery(name);
@@ -57,6 +61,7 @@ public class RestaurantsController(IMediator mediator) : ControllerBase
     }
     
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         var command = new DeleteRestaurantCommand(id);
