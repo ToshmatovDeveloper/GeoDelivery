@@ -11,6 +11,7 @@ builder.Services
     .AddDatabase(builder.Configuration)
     .AddApplication()
     .AddPresentation()
+    .AddCustomOpenApi() 
     .AddMyCustomConfiguration(builder.Configuration)
     .AddRedis(builder.Configuration)
     .AddAuthDatabase(builder.Configuration)
