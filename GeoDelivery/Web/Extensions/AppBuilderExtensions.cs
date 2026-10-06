@@ -12,6 +12,7 @@ using Catalog.Application.Validation;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
 using FluentValidation;
+using Geo.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -40,16 +41,25 @@ public static class AppBuilderExtensions
     public static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnectionString");
-    
+
         services.AddDbContext<CatalogDbContext>(options =>
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 
-        services.AddDbContext<AuthDbContext>(
-            options => options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+        services.AddDbContext<AuthDbContext>(options =>
+            options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+
+        services.AddDbContext<GeoDbContext>(options =>
+        {
+            options.UseNpgsql(connectionString, npgsqlOptions =>
+                {
+                    npgsqlOptions.UseNetTopologySuite();
+                })
+                .UseSnakeCaseNamingConvention();
+        });
 
         services.AddIdentity<User, Role>()
             .AddEntityFrameworkStores<AuthDbContext>();
-        
+
         return services;
     }
 
