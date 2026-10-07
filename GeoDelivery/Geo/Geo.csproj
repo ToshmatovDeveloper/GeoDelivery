@@ -8,11 +8,9 @@
 
     <ItemGroup>
       <PackageReference Include="NetTopologySuite" Version="2.6.0" />
+      <PackageReference Include="NetTopologySuite.CoordinateSystems" Version="1.15.3" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Infrastructure\Persistence\Migrations\" />
+      <PackageReference Include="StackExchange.Redis" Version="3.3.1" />
     </ItemGroup>
 
     <ItemGroup>
