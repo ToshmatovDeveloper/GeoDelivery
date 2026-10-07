@@ -13,6 +13,7 @@ using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
 using FluentValidation;
 using Geo.Infrastructure;
+using Geo.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -76,6 +77,8 @@ public static class AppBuilderExtensions
 
         services.AddValidatorsFromAssemblyContaining<CreateRestaurantCommand>();
         
+        services.AddScoped<PostGisGeoService>();
+        
         services.AddHostedService<RefreshTokenCleaner>();
         
         return services;
@@ -109,6 +112,7 @@ public static class AppBuilderExtensions
         });
 
         services.AddScoped<RedisCacheService>();
+        services.AddScoped<RedisGeoService>();
 
         return services;
     }
