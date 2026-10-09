@@ -4,7 +4,7 @@ namespace Geo.Infrastructure.Services;
 
 public class RedisGeoService(IConnectionMultiplexer redis) 
 {
-    public async Task UpdateLocationAync(string geoKey, Guid courierId, double latitude, double longitude)
+    public async Task UpdateCourierLocationAync(string geoKey, Guid courierId, double latitude, double longitude)
     {
         var db = redis.GetDatabase();
         
