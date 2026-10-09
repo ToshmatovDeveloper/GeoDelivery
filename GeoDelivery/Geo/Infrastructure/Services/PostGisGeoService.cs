@@ -46,6 +46,10 @@ public class PostGisGeoService(
         if (zone == null)
             return null;
 
-        return new DeliveryZoneDto();
+        return new DeliveryZoneDto(
+            Id: zone.Id,
+            Name: zone.Name,
+            IsActive: zone.IsActive
+        );           
     }
 }
