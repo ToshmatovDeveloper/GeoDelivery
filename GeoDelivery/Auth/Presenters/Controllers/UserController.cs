@@ -1,4 +1,5 @@
 ﻿using Auth.Application.Features;
+using Auth.Application.Features.Tokens;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

@@ -1,4 +1,5 @@
 ﻿using Auth.Application.Features;
+using Auth.Application.Features.Tokens;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Auth.Application.Features;
+namespace Auth.Application.Features.Tokens;
 
 public class TokenProvider(IOptionsMonitor<JwtSettings> options)
 {

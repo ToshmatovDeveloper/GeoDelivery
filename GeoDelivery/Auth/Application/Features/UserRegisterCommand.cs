@@ -1,4 +1,5 @@
 ﻿using Auth.Application.CustomExceptions;
+using Auth.Application.Features.Tokens;
 using Auth.Application.Settings;
 using Auth.Domain;
 using Auth.Infrastructure;

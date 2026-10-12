@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Auth.Application.Features;
+namespace Auth.Application.Features.Tokens;
 
 public record RefreshTokenCommand(string RefreshToken) : IRequest<RefreshTokenResponse>;
 

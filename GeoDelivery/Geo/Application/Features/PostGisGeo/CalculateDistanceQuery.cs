@@ -1,7 +1,7 @@
 ﻿using Geo.Infrastructure.Services;
 using MediatR;
 
-namespace Geo.Application.Features;
+namespace Geo.Application.Features.PostGisGeo;
 
 public record CalculateDistanceQuery(
     double Latitude1,

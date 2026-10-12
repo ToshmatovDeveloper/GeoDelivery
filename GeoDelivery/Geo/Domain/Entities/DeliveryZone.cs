@@ -1,6 +1,6 @@
 ﻿using NetTopologySuite.Geometries;
 
-namespace Geo.Domain;
+namespace Geo.Domain.Entities;
 
 public class DeliveryZone
 {
