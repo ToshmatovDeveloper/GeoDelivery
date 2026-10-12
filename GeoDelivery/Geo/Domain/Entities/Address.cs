@@ -1,4 +1,4 @@
-﻿namespace Geo.Domain;
+﻿namespace Geo.Domain.Entities;
 
 public class Address
 {

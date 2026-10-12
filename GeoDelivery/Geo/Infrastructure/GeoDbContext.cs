@@ -1,4 +1,5 @@
 ﻿using Geo.Domain;
+using Geo.Domain.Entities;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Geo.Infrastructure;

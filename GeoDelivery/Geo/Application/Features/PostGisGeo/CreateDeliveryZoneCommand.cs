@@ -1,10 +1,10 @@
-﻿using Geo.Domain;
-using Geo.Domain.Dtos;
+﻿using Geo.Domain.Dtos;
+using Geo.Domain.Entities;
 using Geo.Infrastructure;
 using MediatR;
 using NetTopologySuite.Geometries;
 
-namespace Geo.Application.Features;
+namespace Geo.Application.Features.PostGisGeo;
 
 public record CreateDeliveryZoneCommand(
     string Name,
@@ -34,7 +34,7 @@ public class CreateDeliveryZoneCommandHandler(
         var polygon = geometryFactory.CreatePolygon(linearRing);
         polygon.SRID = 4326;
 
-        var deliveryZone = new Domain.DeliveryZone(
+        var deliveryZone = new DeliveryZone(
             restaurantId: Guid.NewGuid(),
             name: request.Name,
             boundary: polygon,

@@ -2,6 +2,7 @@
 using System.Text;
 using Auth.Application.BackgroundServices;
 using Auth.Application.Features;
+using Auth.Application.Features.Tokens;
 using Auth.Application.Settings;
 using Auth.Domain;
 using Auth.Infrastructure;

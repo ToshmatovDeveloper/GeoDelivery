@@ -1,4 +1,5 @@
 ﻿using Geo.Application.Features;
+using Geo.Application.Features.PostGisGeo;
 using Geo.Application.Features.RedisGeo;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
