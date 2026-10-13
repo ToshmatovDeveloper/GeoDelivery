@@ -18,6 +18,9 @@ using Geo.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using NetTopologySuite;
+using NetTopologySuite.Geometries;
+using Order.Infrastructure;
 using StackExchange.Redis;
 using Web.Middlewares.Exceptions;
 using Role = Auth.Domain.Role;
@@ -58,6 +61,9 @@ public static class AppBuilderExtensions
                 })
                 .UseSnakeCaseNamingConvention();
         });
+        
+        services.AddDbContext<OrderDbContext>(options =>
+            options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 
         services.AddIdentity<User, Role>()
             .AddEntityFrameworkStores<AuthDbContext>();
@@ -114,6 +120,7 @@ public static class AppBuilderExtensions
 
         services.AddScoped<RedisCacheService>();
         services.AddScoped<RedisGeoService>();
+        services.AddSingleton<GeometryFactory>(NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326));
 
         return services;
     }
