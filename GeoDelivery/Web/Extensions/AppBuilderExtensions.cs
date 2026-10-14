@@ -13,6 +13,7 @@ using Catalog.Application.Validation;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
 using FluentValidation;
+using Geo.Application.Validation;
 using Geo.Infrastructure;
 using Geo.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -80,6 +81,7 @@ public static class AppBuilderExtensions
             
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             cfg.AddOpenBehavior(typeof(CachingBehavior<,>));
+            cfg.AddOpenBehavior(typeof(GeoValidationBehavior<,>));
         });
 
         services.AddValidatorsFromAssemblyContaining<CreateRestaurantCommand>();
