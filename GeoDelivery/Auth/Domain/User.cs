@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Identity;
-
 namespace Auth.Domain;
 
 public sealed class User : IdentityUser<Guid>
