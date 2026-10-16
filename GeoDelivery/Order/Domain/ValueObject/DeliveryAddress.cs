@@ -1,3 +1,3 @@
 ﻿namespace Order.Domain.ValueObject;
 
-public record DeliveryAddress(string AddressText, double Latitude, double Longitude);
+public record DeliveryAddress(double Latitude, double Longitude);

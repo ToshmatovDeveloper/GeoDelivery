@@ -1,6 +1,8 @@
 ﻿namespace Order.Application.Dtos;
 
-public record OrderItemResponseDto(Guid ProductId,
+public record OrderItemResponseDto(
+    Guid DishId,
+    string DishName,
     int Quantity,
-    decimal UnitPrice,
+    decimal Price,
     decimal TotalPrice);
