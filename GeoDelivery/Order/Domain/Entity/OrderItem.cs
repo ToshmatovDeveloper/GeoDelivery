@@ -18,5 +18,5 @@ public class OrderItem
     public string DishName { get; private set; } = default!;
     public decimal Price { get; private set; }
     public int Quantity { get; private set; }
-    public decimal TotalPrice => Price * Quantity;
+    public decimal TotalPrice => Price * Quantity; 
 }
