@@ -109,12 +109,6 @@ namespace Order.Migrations
                                 .HasColumnType("uuid")
                                 .HasColumnName("id");
 
-                            b1.Property<string>("AddressText")
-                                .IsRequired()
-                                .HasMaxLength(500)
-                                .HasColumnType("character varying(500)")
-                                .HasColumnName("DeliveryAddressText");
-
                             b1.Property<double>("Latitude")
                                 .HasColumnType("double precision")
                                 .HasColumnName("DeliveryLatitude");

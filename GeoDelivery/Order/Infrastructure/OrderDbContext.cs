@@ -32,11 +32,6 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.OwnsOne(o => o.DeliveryAddress, address =>
         {
-            address.Property(a => a.AddressText)
-                .IsRequired()
-                .HasMaxLength(500)
-                .HasColumnName("DeliveryAddressText");
-
             address.Property(a => a.Latitude)
                 .IsRequired()
                 .HasColumnName("DeliveryLatitude");
