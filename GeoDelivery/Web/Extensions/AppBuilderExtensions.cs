@@ -12,6 +12,7 @@ using Catalog.Application.Settings;
 using Catalog.Application.Validation;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
+using Dispatch.Infrastructure;
 using FluentValidation;
 using Geo.Application.Validation;
 using Geo.Infrastructure;
@@ -64,6 +65,9 @@ public static class AppBuilderExtensions
         });
         
         services.AddDbContext<OrderDbContext>(options =>
+            options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+        
+        services.AddDbContext<DispatchDbContext>(options =>
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 
         services.AddIdentity<User, Role>()
