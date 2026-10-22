@@ -9,6 +9,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Auth\Auth.csproj" />
         <ProjectReference Include="..\Catalog\Catalog.csproj" />
+        <ProjectReference Include="..\Dispatch\Dispatch.csproj" />
         <ProjectReference Include="..\Geo\Geo.csproj" />
         <ProjectReference Include="..\Order\Order.csproj" />
     </ItemGroup>
