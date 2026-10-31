@@ -11,8 +11,11 @@ GeoDelivery connects three sides of a delivery business in one API:
 The system is one deployable ASP.NET Core application divided into **five isolated business modules** plus a Web host. Each module owns its domain model, handlers and database schema, which keeps boundaries clear and allows future extraction into separate services.
 
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
+![ASP.NET Core](https://img.shields.io/badge/ASP.NET_Core-Web_API-512BD4)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![PostGIS](https://img.shields.io/badge/PostGIS-3.4-4169E1)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 ---
 
@@ -131,116 +134,6 @@ The solution contains **six projects: five business modules plus the Web host**.
 | Local infrastructure | Docker Compose |
 
 ---
-
-## Getting started
-
-### Prerequisites
-
-- .NET 10 SDK
-- Docker Desktop
-- EF Core CLI (`dotnet tool install --global dotnet-ef`)
-- Redis 7
-
-### Run locally
-
-```bash
-git clone https://github.com/ToshmatovDeveloper/GeoDelivery.git
-cd GeoDelivery/GeoDelivery
-
-docker compose up -d
-docker run -d --name geodelivery-redis -p 6379:6379 redis:7-alpine
-
-dotnet restore
-dotnet build
-```
-
-Apply the available migrations:
-
-```bash
-dotnet ef database update --context CatalogDbContext  --project Catalog  --startup-project Web
-dotnet ef database update --context OrderDbContext    --project Order    --startup-project Web
-dotnet ef database update --context DispatchDbContext --project Dispatch --startup-project Web
-```
-
-The Auth migration is missing and the Geo migration is empty. Regenerate those two before using auth or delivery zones:
-
-```bash
-rm Auth/Infrastructure/Migrations/AuthDbContextModelSnapshot.cs
-dotnet ef migrations add InitialAuth --context AuthDbContext --project Auth --startup-project Web --output-dir Infrastructure/Migrations
-dotnet ef database update --context AuthDbContext --project Auth --startup-project Web
-
-dotnet ef migrations remove --context GeoDbContext --project Geo --startup-project Web
-dotnet ef migrations add InitialGeo --context GeoDbContext --project Geo --startup-project Web --output-dir Infrastructure/Migrations
-dotnet ef database update --context GeoDbContext --project Geo --startup-project Web
-```
-
-Start the API:
-
-```bash
-dotnet run --project Web
-```
-
-| Resource | URL |
-| --- | --- |
-| API | <http://localhost:5282> |
-| Swagger UI | <http://localhost:5282/swagger> |
-| Seq UI | <http://localhost:8080> |
-
-### Configuration
-
-Settings live in `Web/appsettings.json` and `Web/appsettings.Development.json`. Override them with environment variables using `__`:
-
-```bash
-export ConnectionStrings__DefaultConnectionString="Host=...;Database=...;Username=...;Password=..."
-export JwtSettings__Secret="a-long-random-secret"
-```
-
-| Key | Default |
-| --- | --- |
-| `ConnectionStrings:DefaultConnectionString` | PostgreSQL at `localhost:5432`, db `catalog_service_db` |
-| `ConnectionStrings:Redis` | `localhost:6379` |
-| `CacheSettings:TimeToLive` | `00:05:00` |
-| `JwtSettings:ExpirationInMinutes` | `10` |
-| `JwtSettings:RefreshTokenExpirationInDays` | `7` |
-
-> Replace the development JWT secret and database password before any real deployment.
-
----
-
-## API
-
-Base URL: `http://localhost:5282`. Protected routes require `Authorization: Bearer <token>`. The full contract is available in Swagger.
-
-| Group | Base route | Access |
-| --- | --- | --- |
-| Auth | `/api/User` | Anonymous |
-| Restaurants, categories, dishes | `/api/restaurants`, `/api/categories` | Public reads; `Admin` writes |
-| Orders | `/api/Orders` | Public currently (see roadmap) |
-| Geo zones and couriers | `/api/geo` | `Admin`, `Manager`, `Courier`, `Client` depending on endpoint |
-
----
-
-## Project status and roadmap
-
-**Implemented:** authentication and token rotation, catalog, order creation/retrieval/cancellation, PostGIS zones, Redis GEO couriers, courier-assignment domain.
-
-**Planned:**
-
-- Wire `OrderDispatchWorker` to real pending orders and implement courier matching.
-- Protect order endpoints with JWT and read the customer ID from claims.
-- Validate order prices against the catalog.
-- Seed roles and add an admin bootstrap flow.
-- Commit complete Auth and Geo migrations.
-- Add Redis to `docker-compose.yml`, an API `Dockerfile`, tests and CI.
-- Invalidate cache entries on catalog writes and move secrets out of `appsettings.json`.
-
-Planned work is tracked in [GitHub Issues](https://github.com/ToshmatovDeveloper/GeoDelivery/issues).
-
----
-
-## Contributing
-
-Create a branch from `main` named `features/issue-<number>`, keep changes scoped to one module, run `dotnet build`, and open a pull request describing the change and how it was verified.
 
 ## License
 
