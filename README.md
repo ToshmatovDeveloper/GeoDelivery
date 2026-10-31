@@ -1,8 +1,15 @@
 # GeoDelivery
 
-**A modular-monolith food delivery backend built with .NET 10, Domain-Driven Design, CQRS, PostgreSQL/PostGIS and Redis.**
+**Backend platform for a food-delivery marketplace, built as a modular monolith with .NET 10, DDD, CQRS, PostgreSQL/PostGIS and Redis.**
 
-GeoDelivery is an actively developed backend platform for ordering food and dispatching couriers. Instead of splitting a young product into dozens of distributed services, the system keeps a **single deployable API** while isolating every business capability into its own module, database schema and application pipeline.
+GeoDelivery connects three sides of a delivery business in one API:
+
+- **customers** browse restaurants, place orders and cancel them;
+- **restaurants** publish their menu, categories and available dishes;
+- **operators** manage delivery zones and assign couriers;
+- **couriers** publish their live location for dispatch.
+
+The system is implemented as a **modular monolith**: one deployable ASP.NET Core application, but five isolated business modules with their own domain models, handlers and database schemas. This keeps development and deployment simple while preserving clear boundaries for future scaling.
 
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
 ![ASP.NET Core](https://img.shields.io/badge/ASP.NET_Core-Web_API-512BD4)
@@ -15,86 +22,161 @@ GeoDelivery is an actively developed backend platform for ordering food and disp
 
 ## Table of contents
 
-- [Why a modular monolith?](#why-a-modular-monolith)
-- [Features](#features)
+- [What problem does GeoDelivery solve?](#what-problem-does-geodelivery-solve)
+- [Business rules](#business-rules)
+- [How the business flows work](#how-the-business-flows-work)
 - [Architecture](#architecture)
-- [Solution structure](#solution-structure)
-- [Tech stack](#tech-stack)
+- [Modules](#modules)
+  - [Auth](#1-auth)
+  - [Catalog](#2-catalog)
+  - [Order](#3-order)
+  - [Geo](#4-geo)
+  - [Dispatch](#5-dispatch)
+  - [Web](#web-host)
+- [Technologies](#technologies)
+- [Data storage](#data-storage)
 - [Getting started](#getting-started)
-- [Database & migrations](#database--migrations)
-- [Configuration](#configuration)
-- [API reference](#api-reference)
-- [Example requests](#example-requests)
-- [Design decisions](#design-decisions)
-- [Background services](#background-services)
-- [Current status](#current-status)
+- [API overview](#api-overview)
+- [Examples](#examples)
+- [Project status](#project-status)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
 
 ---
 
-## Why a modular monolith?
+## What problem does GeoDelivery solve?
 
-A delivery platform naturally consists of several subdomains: identity, restaurant catalog, orders, geospatial delivery zones and courier dispatch. GeoDelivery models them as independent modules inside one process:
+A food-delivery business needs to answer four questions continuously:
 
-- **Clear boundaries** — modules keep their own domain model, application handlers and `DbContext`.
-- **Separate schemas** — one PostgreSQL database, but each module owns its schema (`auth`, `geo`, `order`, `dispatch`); the catalog lives in `public`.
-- **No distributed transactions** — cross-module communication happens in-process through MediatR instead of HTTP calls between services.
-- **A migration path to microservices** — a module can be extracted later without rewriting its domain layer.
+1. **What can a customer order?** — restaurants, categories, dishes, prices and availability.
+2. **What did the customer order and how much does it cost?** — orders, line items, delivery address and totals.
+3. **Can we deliver there?** — delivery-zone polygons, distance and nearest-zone calculations.
+4. **Who will deliver it?** — live courier locations and courier assignment.
 
-This gives the development speed of a monolith with most of the modularity benefits of microservices, without premature operational complexity.
+GeoDelivery implements these capabilities as separate modules in one backend, with shared authentication and a consistent API. The result is an MVP-friendly system that can later be split into services module by module without rewriting the business logic.
+
+### Actors and their use cases
+
+| Actor | What they can do |
+| --- | --- |
+| **Customer** | Browse restaurants and dishes, create an order with a delivery address, view an order, cancel their own order |
+| **Restaurant admin** | Create a restaurant, manage categories and dishes, mark a dish as unavailable |
+| **Dispatcher / manager** | Create delivery zones, check whether a point is covered, find the nearest zone, inspect nearby couriers |
+| **Courier** | Publish their current coordinates to the live GEO index |
+| **System** | Issue and rotate JWTs, clean expired refresh tokens, run the courier-dispatch loop |
 
 ---
 
-## Features
+## Business rules
 
-### Implemented
+### Catalog
 
-- **Authentication & authorization**
-  - Registration and login with ASP.NET Core Identity.
-  - JWT access tokens and rotating refresh tokens.
-  - Refresh tokens stored in PostgreSQL; a daily background service removes stale tokens.
-  - Role-based endpoint protection (`Admin`, `Manager`, `Courier`, `Client`).
-- **Restaurant catalog**
-  - Restaurants, categories and dishes with validation.
-  - Restaurant → category → dish relationships.
-  - Dish availability toggling.
-  - Read-through Redis caching for selected queries.
-- **Ordering**
-  - Create an order with delivery coordinates and line items.
-  - Retrieve an order with its items.
-  - Cancel an order; totals are calculated from line items.
-  - Order lifecycle statuses (`Created → Accepted → Cooking → ReadyForDelivery → Delivering → Completed / Cancelled`).
-- **Geospatial services**
-  - Delivery zones stored as PostGIS polygons (SRID 4326) with a GiST index.
-  - Point-in-zone checks, nearest-zone lookup and distance calculation.
-  - Live courier positions in Redis GEO sets; nearby-courier search by radius.
-- **Dispatch**
-  - `CourierAssignment` aggregate and assignment statuses.
-  - Background worker scaffold for automatic courier assignment.
-- **Platform**
-  - MediatR CQRS pipeline with validation and caching behaviors.
-  - Centralized exception handling that maps domain errors to JSON responses (and unexpected errors to `ProblemDetails`).
-  - Structured logging with Serilog to console, rolling files and Seq.
-  - Swagger / OpenAPI UI.
-  - GUID v7 identifiers for time-ordered keys where the domain entities use them.
-  - Snake-case PostgreSQL naming via `EFCore.NamingConventions`.
+- A **restaurant** has a name, description and active flag.
+- A **category** belongs to exactly one restaurant; the restaurant must exist.
+- A **dish** belongs to exactly one restaurant and one category.
+- A dish can only be created if its category belongs to the same restaurant.
+- A dish must have a positive price and a non-empty name.
+- A dish can be marked **unavailable**, so clients no longer show it as sellable.
+- Catalog reads are public; catalog writes require the `Admin` role.
 
-### In progress
+### Ordering
 
-- Fully wired dispatch worker (currently uses a placeholder pending-order list).
-- End-to-end authorization on the ordering endpoints.
-- Role seeding and admin bootstrap.
-- Automated tests and CI.
+- An order is created for one restaurant, one customer and one delivery coordinate.
+- An order contains line items; each line item stores a **snapshot** of the dish ID, name, unit price and quantity.
+- The order total is calculated **on the server** as `Σ(price × quantity)`.
+- Line-item prices are currently accepted from the request and are not yet re-checked against the Catalog; validating them against the menu is on the roadmap.
+- An order carries the statuses `Created`, `Accepted`, `Cooking`, `ReadyForDelivery`, `Delivering`, `Completed` and `Cancelled`. Creation sets `Created`; cancellation sets `Cancelled`; enforced transitions between the remaining states are not implemented yet.
+- A customer may cancel only **their own** order; the handler compares the order's customer ID with the supplied user ID.
+
+### Delivery and dispatch
+
+- A **delivery zone** is a polygon; at least three coordinate points are required and every point must be a valid latitude/longitude.
+- A point can be checked against a zone, and the nearest **active** zone can be found.
+- Courier positions are stored in a **Redis GEO** index under the `active_couriers` key.
+- Nearby couriers are searched by a radius in kilometres.
+- A courier must have the `Courier` role to publish a location.
+- A courier assignment records the order, restaurant, courier, assignment status (`Pending`, `Assigned`, `Completed`, `Cancelled`) and timestamps.
+
+### Identity and access
+
+- Username and email must be unique.
+- Passwords are hashed by ASP.NET Core Identity.
+- Successful login returns a short-lived **access token** (10 minutes by default) and a **refresh token** (7 days by default).
+- Refresh tokens are rotated on every refresh; old tokens are removed.
+- API access is role-based: `Admin`, `Manager`, `Courier`, `Client`.
+- New registrations receive the `User` role; privileged roles are not seeded automatically yet.
+
+### Performance and reliability
+
+- Selected catalog queries are cached in Redis for 5 minutes by default.
+- Input is validated with FluentValidation before handlers run.
+- Domain errors are translated to HTTP responses by centralized exception handlers.
+- Each module owns its database schema, so one module's tables cannot be modified accidentally by another module's context.
+
+---
+
+## How the business flows work
+
+### Customer places an order
+
+```mermaid
+sequenceDiagram
+    actor C as Customer
+    participant API as Web API
+    participant Cat as Catalog
+    participant O as Order
+    participant DB as PostgreSQL
+
+    C->>API: GET /api/restaurants/{id}
+    API->>Cat: GetRestaurantByIdQuery
+    Cat-->>API: restaurant + cached result
+    C->>API: POST /api/Orders
+    API->>O: CreateOrderCommand
+    O->>O: snapshot items, calculate total
+    O->>DB: save order + items
+    O-->>C: 201 Created + orderId
+```
+
+### Dispatcher covers a delivery area
+
+```mermaid
+sequenceDiagram
+    actor D as Dispatcher
+    participant API as Web API
+    participant G as Geo
+    participant PG as PostGIS
+    participant R as Redis GEO
+
+    D->>API: POST /api/geo/zones
+    API->>G: CreateDeliveryZoneCommand
+    G->>PG: store polygon (SRID 4326)
+    D->>API: GET /api/geo/zones/nearest?lat&lon
+    G->>PG: order zones by distance
+    D->>API: GET /api/geo/couriers/nearby?lat&lon&radius
+    G->>R: GEOSEARCH active_couriers
+```
+
+### Courier dispatch (intended flow)
+
+```mermaid
+flowchart LR
+    A[OrderDispatchWorker] -->|pending orders| B[Order module]
+    A -->|find optimal courier| C[Geo module]
+    C -->|courierId| A
+    A -->|AssignCourierCommand| D[Dispatch module]
+    D -->|CourierAssignment| E[(dispatch schema)]
+```
 
 ---
 
 ## Architecture
 
+GeoDelivery uses a **modular monolith** with **Domain-Driven Design** and **CQRS**.
+
 ```mermaid
 flowchart TB
-    Client["Clients<br/>(web / mobile)"] -->|"HTTPS + JWT"| API["GeoDelivery.Web<br/>ASP.NET Core API"]
+    Client["Clients<br/>(web / mobile)"] -->|"HTTPS + JWT"| API["GeoDelivery.Web<br/>ASP.NET Core host"]
 
     API --> Auth["Auth module"]
     API --> Catalog["Catalog module"]
@@ -103,84 +185,191 @@ flowchart TB
     API --> Dispatch["Dispatch module"]
 
     Auth --> AuthDb[("auth schema")]
-    Catalog --> CatalogDb[("public schema<br/>restaurants / categories / dishes")]
+    Catalog --> CatalogDb[("public schema")]
     Order --> OrderDb[("order schema")]
-    Geo --> GeoDb[("geo schema<br/>PostGIS polygons")]
+    Geo --> GeoDb[("geo schema + PostGIS")]
     Dispatch --> DispatchDb[("dispatch schema")]
 
-    Catalog --> RedisCache[("Redis<br/>cache")]
-    Geo --> RedisGeo[("Redis<br/>GEO index")]
-
+    Catalog --> RedisCache[("Redis cache")]
+    Geo --> RedisGeo[("Redis GEO")]
     API --> Seq["Serilog → Seq"]
-    Dispatch -.->|"poll every 10 s"| OrderDb
-    Dispatch -.->|"find courier"| Geo
 ```
 
-Every module follows the same internal layout:
+### Architectural principles
+
+- **One deployable unit.** A single Web API hosts all modules.
+- **Module isolation.** Each module contains its own domain, application, infrastructure and presentation code.
+- **No direct module references.** Modules do not reference each other's projects; in-process communication goes through MediatR requests.
+- **Schema per module.** Modules share one PostgreSQL instance but own separate schemas.
+- **CQRS.** Writes are commands, reads are queries; each has a dedicated handler.
+- **Thin controllers.** Controllers only bind HTTP input and call `IMediator`.
+- **Pipeline behaviors.** Validation, caching and Geo-specific validation run around handlers.
+- **Vertical slices.** A feature's command/query, validator, DTO and handler live next to each other.
+
+### Internal module layout
 
 ```text
 <Module>/
 ├── Domain/          # Entities, value objects, enums, DTOs
-├── Application/     # Commands, queries, handlers, validators, pipeline behaviors
-├── Infrastructure/  # DbContext, EF Core configurations, migrations, external services
-└── Presenters/      # API controllers
+├── Application/     # Commands, queries, handlers, validators, behaviors
+├── Infrastructure/  # DbContext, EF Core mappings, migrations, external services
+└── Presenters/      # API controllers (where the module exposes HTTP endpoints)
 ```
 
-`Web` is the composition root: it references all modules, registers their services and hosts the HTTP pipeline. Modules do **not** reference each other; shared behavior is expressed through MediatR requests or infrastructure services.
+The `Web` project is the **composition root**: it references every module, registers dependencies and hosts the middleware pipeline.
 
 ---
 
-## Solution structure
+## Modules
 
-```text
-GeoDelivery/
-├── GeoDelivery.sln
-├── docker-compose.yml          # PostgreSQL/PostGIS + Seq
-│
-├── Auth/                       # Identity, JWT, refresh tokens
-├── Catalog/                    # Restaurants, categories, dishes, Redis cache
-├── Order/                      # Orders and order items
-├── Geo/                        # PostGIS zones + Redis GEO courier tracking
-├── Dispatch/                   # Courier assignment + dispatch worker
-│
-└── Web/                        # Composition root, DI, middleware, Swagger
-    ├── Extensions/             # Service registration extension methods
-    ├── Middlewares/Exceptions/ # IExceptionHandler implementations
-    ├── appsettings.json
-    └── Program.cs
-```
+The solution contains **six projects: five business modules plus the Web host**.
 
-### Module map
+| # | Module | Solves | Own data |
+| --- | --- | --- | --- |
+| 1 | **Auth** | Who the user is and what they may access | `auth` schema |
+| 2 | **Catalog** | What restaurants sell and at what price | `public` schema + Redis cache |
+| 3 | **Order** | What the customer ordered and its lifecycle | `order` schema |
+| 4 | **Geo** | Where delivery is possible and where couriers are | `geo` schema + Redis GEO |
+| 5 | **Dispatch** | Which courier is assigned to which order | `dispatch` schema |
+| 6 | **Web** | Hosts everything behind one HTTP API | — |
 
-| Module | Responsibility | Persistence |
+### 1. Auth
+
+**Task:** identity, authentication and role-based authorization.
+
+- Registers users with unique username and email.
+- Stores users, roles and refresh tokens through ASP.NET Core Identity.
+- Issues JWT access tokens with role claims.
+- Issues opaque refresh tokens and rotates them on refresh.
+- Runs `RefreshTokenCleaner` daily to keep only the newest refresh token per user.
+- Rejects expired or unknown refresh tokens.
+
+**Key entities:** `User`, `Role`, `RefreshToken`.
+
+**Endpoints:** `/api/User/register`, `/api/User/login`, `/api/User/refresh`.
+
+### 2. Catalog
+
+**Task:** restaurant and menu management.
+
+- Creates and deletes restaurants.
+- Looks up restaurants by ID or name.
+- Creates categories inside a restaurant.
+- Creates dishes inside a category and verifies that both belong to the same restaurant.
+- Marks dishes unavailable.
+- Lists categories and dishes for a restaurant, lists all categories, and resolves the category of a dish.
+- Caches selected read queries in Redis.
+
+**Key entities:** `Restaurant`, `Category`, `Dish`.
+
+**Read model:** `RestaurantDto`, `CategoryDto`, `DishDto`.
+
+**Endpoints:** `/api/restaurants`, `/api/restaurants/categories`, `/api/restaurants/dishes`.
+
+### 3. Order
+
+**Task:** turn a customer's basket into a persisted order and track its lifecycle.
+
+- Creates an order with delivery coordinates and line items.
+- Snapshots dish name and price at order time.
+- Computes the order total from line items.
+- Returns an order with all items.
+- Cancels an order only if the requesting customer owns it.
+- Exposes the order status enum.
+
+**Key entities:** `Order`, `OrderItem`, `DeliveryAddress` (value object).
+
+**Statuses:** `Created`, `Accepted`, `Cooking`, `ReadyForDelivery`, `Delivering`, `Completed`, `Cancelled`.
+
+**Endpoints:** `/api/Orders`, `/api/Orders/{id}`, `/api/Orders/{id}/cancel`.
+
+### 4. Geo
+
+**Task:** answer geospatial questions for delivery.
+
+- Creates delivery zones as PostGIS polygons (SRID 4326).
+- Automatically closes a polygon if the first and last points differ.
+- Checks whether a coordinate lies inside a zone.
+- Finds the nearest active zone.
+- Calculates distance between two coordinates.
+- Stores live courier positions in Redis GEO.
+- Finds couriers within a radius.
+- Removes a courier from the GEO index.
+
+**Key entities:** `DeliveryZone`, `Address`, `Location`.
+
+**Storage:** PostGIS `geometry(Polygon, 4326)` with a GiST index; Redis sorted set for courier coordinates.
+
+**Endpoints:** `/api/geo/zones`, `/api/geo/zones/{id}/check`, `/api/geo/zones/nearest`, `/api/geo/distance`, `/api/geo/couriers/*`.
+
+### 5. Dispatch
+
+**Task:** decide which courier should deliver an order.
+
+- Defines the `CourierAssignment` aggregate.
+- Tracks assignment state: `Pending`, `Assigned`, `Completed`, `Cancelled`.
+- Persists assignments with order, restaurant and courier IDs.
+- Provides `AssignCourierCommand`.
+- Provides `FindOptimalCourierQuery` as the extension point for geo-based matching.
+- Contains `OrderDispatchWorker`, a background loop that is intended to poll pending orders every 10 seconds and assign couriers.
+
+**Key entity:** `CourierAssignment`.
+
+**Current state:** the domain and persistence are in place; pending-order loading and courier selection are still placeholders.
+
+### Web host
+
+**Task:** compose modules into one HTTP application.
+
+- Registers all `DbContext`s, MediatR handlers, validators, Redis and JWT authentication.
+- Configures Swagger/OpenAPI.
+- Applies exception-handling middleware.
+- Configures Serilog sinks.
+- Maps controllers from all modules.
+- Runs background services (`RefreshTokenCleaner`, `OrderDispatchWorker`).
+
+---
+
+## Technologies
+
+| Area | Technology | Why it is used |
 | --- | --- | --- |
-| **Auth** | Users, roles, JWT issuing, refresh-token rotation and cleanup | PostgreSQL `auth` schema |
-| **Catalog** | Restaurants, categories, dishes, availability, cached reads | PostgreSQL `public` schema + Redis |
-| **Order** | Order creation, totals, statuses, cancellation | PostgreSQL `order` schema |
-| **Geo** | Delivery-zone polygons, distance calculations, courier locations | PostgreSQL `geo` schema + Redis GEO |
-| **Dispatch** | Courier assignments and background assignment loop | PostgreSQL `dispatch` schema |
-| **Web** | HTTP pipeline, DI composition, error mapping, OpenAPI, logging | — |
+| Runtime | **.NET 10 / ASP.NET Core** | Modern LTS-track platform for the API |
+| Language | **C# 14** | Records, pattern matching, primary constructors |
+| Architecture | **Modular monolith, DDD, CQRS** | Clear boundaries without distributed-system overhead |
+| In-process messaging | **MediatR 14** | Decouples controllers from handlers and enables pipeline behaviors |
+| Validation | **FluentValidation 12** | Declarative command/query validation |
+| ORM | **EF Core 10** | Mapping, migrations, LINQ queries |
+| Database | **PostgreSQL 16 + PostGIS 3.4** | Reliable relational storage with native geospatial types |
+| Geospatial | **NetTopologySuite** | Polygon operations and coordinate mapping |
+| Cache / GEO | **Redis 7 + StackExchange.Redis** | Read-through caching and real-time courier positions |
+| Identity | **ASP.NET Core Identity** | Password hashing, users, roles |
+| Authentication | **JWT Bearer + refresh tokens** | Stateless API access with rotation |
+| Logging | **Serilog + Seq** | Structured logs to console, files and Seq |
+| API docs | **Swagger / Swashbuckle** | Interactive endpoint documentation |
+| Infrastructure | **Docker Compose** | Local PostgreSQL/PostGIS and Seq |
 
 ---
 
-## Tech stack
+## Data storage
 
-| Area | Technology |
-| --- | --- |
-| Runtime | .NET 10 / ASP.NET Core |
-| Language | C# 14 |
-| Architecture | Modular monolith, DDD, CQRS |
-| Messaging in-process | MediatR 14 |
-| Validation | FluentValidation 12 |
-| Persistence | EF Core 10, Npgsql |
-| Database | PostgreSQL 16 + PostGIS 3.4 |
-| Geospatial | NetTopologySuite, PostGIS, Redis GEO |
-| Caching | Redis (`StackExchange.Redis`) |
-| Identity | ASP.NET Core Identity |
-| Auth | JWT Bearer + refresh tokens |
-| Logging | Serilog (console, file, Seq) |
-| API docs | Swagger / Swashbuckle |
-| Containers | Docker Compose (infrastructure) |
+GeoDelivery uses **one PostgreSQL database** (`catalog_service_db`) divided into schemas. This avoids cross-module foreign keys while keeping operations simple.
+
+| Context | Schema | Tables |
+| --- | --- | --- |
+| `CatalogDbContext` | `public` | `restaurants`, `categories`, `dishes` |
+| `AuthDbContext` | `auth` | `users`, `roles`, `refresh_tokens`, Identity tables |
+| `OrderDbContext` | `order` | `Orders`, `OrderItems` |
+| `GeoDbContext` | `geo` | `delivery_zones` |
+| `DispatchDbContext` | `dispatch` | `CourierAssignments` |
+
+Notable mappings:
+
+- Money uses `numeric(18,2)`.
+- Enums are stored as strings.
+- Zone boundaries use `geometry(Polygon, 4326)` and a GiST index.
+- EF Core uses snake_case naming via `EFCore.NamingConventions`.
+- `DeliveryAddress` is an owned value object and is flattened into the `Orders` table.
 
 ---
 
@@ -188,45 +377,43 @@ GeoDelivery/
 
 ### Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) (the solution targets `net10.0`)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or compatible Docker engine)
-- [EF Core CLI](https://learn.microsoft.com/ef/core/cli/dotnet) for migrations
-- Redis 7 (see below; the current `docker-compose.yml` starts PostgreSQL and Seq only)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [EF Core CLI](https://learn.microsoft.com/ef/core/cli/dotnet)
+- Redis 7
 
-### 1. Clone the repository
+### 1. Clone and enter the solution
 
 ```bash
 git clone https://github.com/ToshmatovDeveloper/GeoDelivery.git
 cd GeoDelivery/GeoDelivery
 ```
 
-### 2. Start infrastructure
+### 2. Start PostgreSQL/PostGIS and Seq
 
 ```bash
 docker compose up -d
 ```
 
-This starts:
-
-| Service | URL / port | Credentials |
+| Service | Address | Credentials |
 | --- | --- | --- |
-| PostgreSQL 16 + PostGIS | `localhost:5432` | `postgres` / `postgres`, database `catalog_service_db` |
-| Seq | <http://localhost:8080> (UI), `localhost:5341` (ingest) | no auth |
+| PostgreSQL 16 + PostGIS | `localhost:5432` | `postgres` / `postgres`, db `catalog_service_db` |
+| Seq | <http://localhost:8080> | no auth in development |
 
-Redis is required by the catalog cache and GEO features but is not yet part of the compose file:
+Redis is not yet part of the compose file; start it separately:
 
 ```bash
 docker run -d --name geodelivery-redis -p 6379:6379 redis:7-alpine
 ```
 
-### 3. Restore and build
+### 3. Build
 
 ```bash
 dotnet restore
 dotnet build
 ```
 
-### 4. Apply database migrations
+### 4. Create the database schema
 
 ```bash
 dotnet ef database update --context CatalogDbContext  --project Catalog  --startup-project Web
@@ -234,265 +421,185 @@ dotnet ef database update --context OrderDbContext    --project Order    --start
 dotnet ef database update --context DispatchDbContext --project Dispatch --startup-project Web
 ```
 
-> **Migration gaps:** the `Auth` module currently contains only a model snapshot and the `Geo` module's initial migration is empty. See [Troubleshooting](#troubleshooting-missing-auth--geo-schema) to create their tables locally.
-
-### 5. Run the API
+The committed **Auth** migration is missing and the **Geo** migration is empty. To create those tables locally:
 
 ```bash
-dotnet run --project Web
-```
-
-| Environment | URL |
-| --- | --- |
-| HTTP | <http://localhost:5282> |
-| HTTPS | <https://localhost:7237> |
-| Swagger UI | <http://localhost:5282/swagger> |
-| Seq UI | <http://localhost:8080> |
-
----
-
-## Database & migrations
-
-GeoDelivery uses **one physical database**, `catalog_service_db`, with schema-per-module isolation:
-
-| DbContext | Default schema | Main tables |
-| --- | --- | --- |
-| `CatalogDbContext` | `public` | `restaurants`, `categories`, `dishes` |
-| `AuthDbContext` | `auth` | `users`, `roles`, `refresh_tokens`, Identity tables |
-| `GeoDbContext` | `geo` | `delivery_zones` (`geometry(Polygon, 4326)`, GiST index) |
-| `OrderDbContext` | `order` | `Orders`, `OrderItems` |
-| `DispatchDbContext` | `dispatch` | `CourierAssignments` |
-
-### Adding a migration
-
-```bash
-dotnet ef migrations add <MigrationName> \
-  --context <DbContext> \
-  --project <Module> \
-  --startup-project Web \
-  --output-dir Infrastructure/Migrations
-```
-
-### Troubleshooting: missing Auth / Geo schema
-
-At the time of writing, the Auth and Geo migrations are incomplete. To create the missing tables locally, regenerate those migrations once:
-
-```bash
-# Auth: a snapshot exists without an actual migration
+# Auth
 rm Auth/Infrastructure/Migrations/AuthDbContextModelSnapshot.cs
 dotnet ef migrations add InitialAuth --context AuthDbContext --project Auth --startup-project Web --output-dir Infrastructure/Migrations
 dotnet ef database update --context AuthDbContext --project Auth --startup-project Web
 
-# Geo: the committed initial migration is empty
+# Geo
 dotnet ef migrations remove --context GeoDbContext --project Geo --startup-project Web
 dotnet ef migrations add InitialGeo --context GeoDbContext --project Geo --startup-project Web --output-dir Infrastructure/Migrations
 dotnet ef database update --context GeoDbContext --project Geo --startup-project Web
 ```
 
-On Windows, replace `rm` with `Remove-Item`. Committing the regenerated migrations in a dedicated PR is part of the [roadmap](#roadmap).
+On Windows, use `Remove-Item` instead of `rm`.
 
----
+### 5. Run
 
-## Configuration
+```bash
+dotnet run --project Web
+```
 
-Configuration lives in `Web/appsettings.json` and `Web/appsettings.Development.json`, and can be overridden with environment variables or .NET user secrets.
+| Resource | URL |
+| --- | --- |
+| HTTP API | <http://localhost:5282> |
+| HTTPS API | <https://localhost:7237> |
+| Swagger UI | <http://localhost:5282/swagger> |
+| Seq UI | <http://localhost:8080> |
 
-| Key | Purpose | Development default |
+### Configuration
+
+Settings live in `Web/appsettings.json` and `Web/appsettings.Development.json`. Override them with environment variables using `__` as the separator.
+
+| Key | Meaning | Default |
 | --- | --- | --- |
-| `ConnectionStrings:DefaultConnectionString` | PostgreSQL connection string | `localhost:5432`, db `catalog_service_db` |
+| `ConnectionStrings:DefaultConnectionString` | PostgreSQL connection | `localhost:5432`, `catalog_service_db` |
 | `ConnectionStrings:Redis` | Redis endpoint | `localhost:6379` |
-| `CacheSettings:TimeToLive` | Default cache TTL | `00:05:00` |
-| `JwtSettings:Secret` | HMAC signing key | development placeholder — **replace it** |
-| `JwtSettings:Issuer` | JWT issuer | `https://localhost:7237` |
-| `JwtSettings:Audience` | JWT audience | `https://localhost:7237` |
+| `CacheSettings:TimeToLive` | Cache TTL | `00:05:00` |
+| `JwtSettings:Secret` | JWT signing key | development placeholder |
+| `JwtSettings:Issuer` / `Audience` | Token issuer and audience | `https://localhost:7237` |
 | `JwtSettings:ExpirationInMinutes` | Access-token lifetime | `10` |
 | `JwtSettings:RefreshTokenExpirationInDays` | Refresh-token lifetime | `7` |
-| `Serilog:*` | Console/file/Seq sinks | rolling file `Logs/log.txt`, Seq at `localhost:5341` |
 
-Environment-variable overrides use double underscores, for example:
+Example:
 
 ```bash
 export ConnectionStrings__DefaultConnectionString="Host=...;Database=...;Username=...;Password=..."
-export JwtSettings__Secret="a-long-random-production-secret"
+export JwtSettings__Secret="a-long-random-secret"
 ```
 
-> **Security note:** never reuse the development JWT secret or database password in production. Prefer user secrets locally and a secret manager in deployment.
+> Replace the development JWT secret and database password before any real deployment.
 
 ---
 
-## API reference
+## API overview
 
-Base URL: `http://localhost:5282`. All routes are case-insensitive. Protected endpoints expect `Authorization: Bearer <access-token>`.
+Base URL: `http://localhost:5282`. Protected routes require `Authorization: Bearer <access-token>`.
 
 ### Auth
 
-| Method | Route | Access |
-| --- | --- | --- |
-| `POST` | `/api/User/register` | Anonymous |
-| `POST` | `/api/User/login` | Anonymous |
-| `POST` | `/api/User/refresh` | Anonymous |
+| Method | Route | Access | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/User/register` | Anonymous | Create an account and receive tokens |
+| `POST` | `/api/User/login` | Anonymous | Authenticate and receive tokens |
+| `POST` | `/api/User/refresh` | Anonymous | Rotate a refresh token |
 
-### Catalog — restaurants
+### Catalog
 
-| Method | Route | Access |
-| --- | --- | --- |
-| `POST` | `/api/restaurants` | `Admin` |
-| `GET` | `/api/restaurants/{id}` | Anonymous |
-| `GET` | `/api/restaurants/by-name/{name}` | Anonymous |
-| `DELETE` | `/api/restaurants/{id}` | `Admin` |
-
-### Catalog — categories
-
-| Method | Route | Access |
-| --- | --- | --- |
-| `POST` | `/api/restaurants/categories` | `Admin` |
-| `GET` | `/api/restaurants/categories?restaurantId={id}` | Anonymous |
-| `GET` | `/api/categories` | Anonymous |
-| `GET` | `/api/restaurants/categories/dishes/{dishId}?restaurantId={id}` | Anonymous |
-| `DELETE` | `/api/restaurants/categories/{categoryId}?restaurantId={id}` | `Admin` |
-
-### Catalog — dishes
-
-| Method | Route | Access |
-| --- | --- | --- |
-| `POST` | `/api/restaurants/dishes` | `Admin` |
-| `GET` | `/api/restaurants/dishes/{id}?restaurantId={id}` | Anonymous |
-| `GET` | `/api/restaurants/dishes/by-name/{name}` | Anonymous |
-| `GET` | `/api/restaurants/dishes?restaurantId={id}` | Anonymous |
-| `PATCH` | `/api/restaurants/dishes/{id}/unavailable` | `Admin` |
+| Method | Route | Access | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/restaurants` | `Admin` | Create a restaurant |
+| `GET` | `/api/restaurants/{id}` | Public | Get a restaurant |
+| `GET` | `/api/restaurants/by-name/{name}` | Public | Find a restaurant by name |
+| `DELETE` | `/api/restaurants/{id}` | `Admin` | Delete a restaurant |
+| `POST` | `/api/restaurants/categories` | `Admin` | Create a category |
+| `GET` | `/api/restaurants/categories?restaurantId=` | Public | List restaurant categories |
+| `GET` | `/api/categories` | Public | List all categories |
+| `GET` | `/api/restaurants/categories/dishes/{dishId}?restaurantId=` | Public | Get a dish's category |
+| `DELETE` | `/api/restaurants/categories/{categoryId}?restaurantId=` | `Admin` | Delete a category |
+| `POST` | `/api/restaurants/dishes` | `Admin` | Create a dish |
+| `GET` | `/api/restaurants/dishes/{id}?restaurantId=` | Public | Get a dish |
+| `GET` | `/api/restaurants/dishes/by-name/{name}` | Public | Find a dish by name |
+| `GET` | `/api/restaurants/dishes?restaurantId=` | Public | List dishes of a restaurant |
+| `PATCH` | `/api/restaurants/dishes/{id}/unavailable` | `Admin` | Mark a dish unavailable |
 
 ### Orders
 
-| Method | Route | Access |
-| --- | --- | --- |
-| `POST` | `/api/Orders` | Anonymous (see roadmap) |
-| `GET` | `/api/Orders/{id}` | Anonymous (see roadmap) |
-| `POST` | `/api/Orders/{id}/cancel` | Anonymous; `userId` in body |
+| Method | Route | Access | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/Orders` | Public (see roadmap) | Create an order |
+| `GET` | `/api/Orders/{id}` | Public (see roadmap) | Get an order with items |
+| `POST` | `/api/Orders/{id}/cancel` | Public; `userId` in body | Cancel an order |
 
 ### Geo
 
-| Method | Route | Access |
-| --- | --- | --- |
-| `POST` | `/api/geo/zones` | `Admin`, `Manager` |
-| `GET` | `/api/geo/zones/{zoneId}/check?latitude=&longitude=` | `Admin`, `Manager`, `Client` |
-| `GET` | `/api/geo/zones/nearest?latitude=&longitude=` | `Admin`, `Manager`, `Client` |
-| `GET` | `/api/geo/distance?lat1=&lon1=&lat2=&lon2=` | `Admin`, `Manager`, `Client` |
-| `POST` | `/api/geo/couriers/location` | `Courier` |
-| `GET` | `/api/geo/couriers/nearby?latitude=&longitude=&radiusInKm=` | `Admin`, `Manager` |
-| `DELETE` | `/api/geo/couriers/{courierId}` | `Admin` |
-
-### Roles
-
-Registration assigns the `User` role. Other roles used by the API (`Admin`, `Manager`, `Courier`, `Client`) are **not seeded automatically** yet; add them to the Identity tables (or via a future admin bootstrap endpoint) before calling protected endpoints.
+| Method | Route | Access | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/geo/zones` | `Admin`, `Manager` | Create a delivery zone |
+| `GET` | `/api/geo/zones/{zoneId}/check?latitude=&longitude=` | `Admin`, `Manager`, `Client` | Check point coverage |
+| `GET` | `/api/geo/zones/nearest?latitude=&longitude=` | `Admin`, `Manager`, `Client` | Find nearest active zone |
+| `GET` | `/api/geo/distance?lat1=&lon1=&lat2=&lon2=` | `Admin`, `Manager`, `Client` | Distance between points |
+| `POST` | `/api/geo/couriers/location` | `Courier` | Publish courier position |
+| `GET` | `/api/geo/couriers/nearby?latitude=&longitude=&radiusInKm=` | `Admin`, `Manager` | Find couriers in radius |
+| `DELETE` | `/api/geo/couriers/{courierId}` | `Admin` | Remove courier from GEO index |
 
 ---
 
-## Example requests
+## Examples
 
-### Register
+### Register and log in
 
 ```bash
 curl -X POST http://localhost:5282/api/User/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "userName": "jane",
-    "email": "jane@example.com",
-    "password": "P@ssw0rd123"
-  }'
-```
+  -d '{"userName":"jane","email":"jane@example.com","password":"P@ssw0rd123"}'
 
-The response contains `accessToken`, `refreshToken` and a welcome message.
-
-### Login
-
-```bash
 curl -X POST http://localhost:5282/api/User/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "jane@example.com",
-    "password": "P@ssw0rd123"
-  }'
+  -d '{"email":"jane@example.com","password":"P@ssw0rd123"}'
 ```
 
-### Create a restaurant (requires the `Admin` role)
+### Create a restaurant, category and dish
 
 ```bash
 curl -X POST http://localhost:5282/api/restaurants \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Pasta Palace",
-    "description": "Fresh pasta every day",
-    "isActive": true
-  }'
-```
+  -d '{"name":"Pasta Palace","description":"Fresh pasta every day","isActive":true}'
 
-### Create a category and a dish
-
-```bash
 curl -X POST http://localhost:5282/api/restaurants/categories \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "restaurantId": "<restaurant-id>", "name": "Main courses" }'
+  -d '{"restaurantId":"<restaurant-id>","name":"Main courses"}'
 
 curl -X POST http://localhost:5282/api/restaurants/dishes \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "restaurantId": "<restaurant-id>",
-    "categoryId": "<category-id>",
-    "name": "Carbonara",
-    "price": 12.50,
-    "isAvailable": true
-  }'
+  -d '{"restaurantId":"<restaurant-id>","categoryId":"<category-id>","name":"Carbonara","price":12.50,"isAvailable":true}'
 ```
 
-### Create an order
+### Place and cancel an order
 
 ```bash
 curl -X POST http://localhost:5282/api/Orders \
   -H "Content-Type: application/json" \
   -d '{
-    "restaurantId": "<restaurant-id>",
-    "userId": "<customer-id>",
-    "latitude": 41.3111,
-    "longitude": 69.2797,
-    "items": [
-      {
-        "dishId": "<dish-id>",
-        "dishName": "Carbonara",
-        "quantity": 2,
-        "price": 12.50
-      }
-    ]
+    "restaurantId":"<restaurant-id>",
+    "userId":"<customer-id>",
+    "latitude":41.3111,
+    "longitude":69.2797,
+    "items":[{"dishId":"<dish-id>","dishName":"Carbonara","quantity":2,"price":12.50}]
   }'
+
+curl -X POST http://localhost:5282/api/Orders/<order-id>/cancel \
+  -H "Content-Type: application/json" \
+  -d '"<customer-id>"'
 ```
 
-### Geo — create a delivery zone
+### Create a delivery zone and update a courier position
 
 ```bash
 curl -X POST http://localhost:5282/api/geo/zones \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Downtown",
-    "isActive": true,
-    "points": [
-      { "latitude": 41.30, "longitude": 69.26 },
-      { "latitude": 41.32, "longitude": 69.26 },
-      { "latitude": 41.32, "longitude": 69.29 },
-      { "latitude": 41.30, "longitude": 69.29 }
+    "name":"Downtown",
+    "isActive":true,
+    "points":[
+      {"latitude":41.30,"longitude":69.26},
+      {"latitude":41.32,"longitude":69.26},
+      {"latitude":41.32,"longitude":69.29},
+      {"latitude":41.30,"longitude":69.29}
     ]
   }'
-```
 
-### Geo — update courier position and find couriers nearby
-
-```bash
 curl -X POST http://localhost:5282/api/geo/couriers/location \
   -H "Authorization: Bearer $COURIER_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "courierId": "<courier-id>", "latitude": 41.3111, "longitude": 69.2797 }'
+  -d '{"courierId":"<courier-id>","latitude":41.3111,"longitude":69.2797}'
 
 curl "http://localhost:5282/api/geo/couriers/nearby?latitude=41.3111&longitude=69.2797&radiusInKm=3" \
   -H "Authorization: Bearer $TOKEN"
@@ -500,128 +607,55 @@ curl "http://localhost:5282/api/geo/couriers/nearby?latitude=41.3111&longitude=6
 
 ---
 
-## Design decisions
+## Project status
 
-### CQRS with MediatR
-
-Each use case is a command or query with a dedicated handler:
-
-```text
-HTTP request → Controller → IMediator.Send(...) → Pipeline behaviors → Handler → DbContext
-```
-
-Pipeline behaviors provide cross-cutting concerns:
-
-| Behavior | Responsibility |
+| Capability | Status |
 | --- | --- |
-| `ValidationBehavior<TRequest, TResponse>` | Runs FluentValidation validators for catalog commands/queries and throws `BadRequestException`. |
-| `GeoValidationBehavior<TRequest, TResponse>` | Same idea for the Geo module; throws FluentValidation's `ValidationException`. |
-| `CachingBehavior<TRequest, TResponse>` | Read-through Redis cache for queries implementing `ICachableQuery`. |
-
-### Domain modeling
-
-- Aggregates encapsulate their children: `Order` owns `OrderItem`, `Restaurant` owns `Category` through a private collection exposed as read-only.
-- `DeliveryAddress` is a value object.
-- State is exposed through explicit enums (`OrderStatus`, `AssignmentStatus`) stored as strings in PostgreSQL.
-- `Guid.CreateVersion7()` is used for time-sortable identifiers (improving index locality) in the catalog and identity aggregates; order and dispatch entities still use `Guid.NewGuid()`.
-
-### Persistence
-
-- One `DbContext` per module, one schema per module.
-- EF Core configurations are colocated with each context; snake-case naming is applied globally.
-- PostGIS types are mapped through NetTopologySuite; zone boundaries get a GiST index.
-- Money is stored as `numeric(18,2)`.
-
-### Caching
-
-Only explicitly cacheable queries (`ICachableQuery`) are cached, using keys such as `restaurant:{id}`, `dishes:restaurant:{id}` and `categories:all`. The default TTL comes from `CacheSettings:TimeToLive`. Write-side cache invalidation is not implemented yet.
-
-### Error handling
-
-Custom exceptions (`NotFoundException`, `BadRequestException`, `UnauthorizedException`, identity-related exceptions) are mapped to HTTP responses by `IExceptionHandler` implementations. Unknown errors are handled by `GlobalExceptionHandler` and returned as `ProblemDetails`; domain exceptions currently return a small JSON envelope (`status`, `message`).
-
-### Logging
-
-Serilog is configured from `appsettings` and writes to console, a rolling file (`Web/Logs/log.txt` in development) and Seq. Handlers emit structured log messages for traceability.
-
----
-
-## Background services
-
-| Service | Interval | Purpose | Status |
-| --- | --- | --- | --- |
-| `RefreshTokenCleaner` | Daily | Deletes all but the newest refresh token for each user. | Working |
-| `OrderDispatchWorker` | 10 seconds | Finds pending orders, selects an optimal courier and persists an assignment. | Scaffold — pending-order retrieval and courier selection are still stubs |
-
-The dispatch flow is intended to be:
-
-```mermaid
-sequenceDiagram
-    participant W as OrderDispatchWorker
-    participant O as Order module
-    participant G as Geo module
-    participant D as Dispatch module
-
-    W->>O: fetch unassigned orders
-    W->>G: find optimal courier (PostGIS / Redis GEO)
-    G-->>W: courierId
-    W->>D: AssignCourierCommand(orderId, restaurantId, courierId)
-    D-->>W: assignment persisted
-```
-
----
-
-## Current status
-
-| Area | Status |
-| --- | --- |
-| Auth (register/login/refresh) | ✅ Implemented, integration-level testing pending |
-| Catalog | ✅ Implemented |
-| Orders | ✅ Core flow implemented; authorization and validation hardening pending |
-| Geo (PostGIS + Redis GEO) | ✅ Core implemented; zone creation currently ignores restaurant/cost payload |
-| Dispatch | 🚧 Domain and worker scaffold; dispatch logic is not wired |
-| Tests | ❌ No test projects yet |
-| CI/CD | ❌ Not configured |
-| Docker image for the API | ❌ Not provided |
+| Registration, login, refresh, token cleanup | Implemented |
+| Restaurants, categories, dishes | Implemented |
+| Order creation, retrieval, cancellation | Implemented |
+| PostGIS delivery zones and Redis GEO | Implemented |
+| Courier assignment domain | Implemented |
+| Automatic dispatch | Placeholder — worker and courier selection are not wired to real data |
+| Role seeding | Not implemented |
+| Automated tests / CI | Not implemented |
 
 ---
 
 ## Roadmap
 
-- [ ] Connect `OrderDispatchWorker` to real pending orders and make `FindOptimalCourierQuery` query the Geo module instead of returning a random GUID.
-- [ ] Add `[Authorize]` to order endpoints and derive the customer ID from JWT claims instead of the request body.
-- [ ] Seed Identity roles and add an admin/bootstrap flow.
-- [ ] Regenerate and commit complete `Auth` and `Geo` migrations.
-- [ ] Add unit and integration tests (domain, handlers, API) and a GitHub Actions pipeline.
-- [ ] Add Redis to `docker-compose.yml` and a multi-stage `Dockerfile` for the API.
-- [ ] Invalidate cache entries on write operations.
-- [ ] Move JWT signing key and production credentials to environment variables / a secret manager.
-- [ ] Replace the planar distance approximation with geodesic calculations.
-- [ ] Add payment, notification and real-time tracking modules.
-- [ ] Validate the delivery-zone payload (restaurant ID, delivery cost, polygon shape) and use it in `CreateDeliveryZoneCommand`.
+- [ ] Connect `OrderDispatchWorker` to pending orders and implement real courier matching.
+- [ ] Protect order endpoints with JWT and read the customer ID from claims.
+- [ ] Validate order line-item prices against the Catalog instead of trusting the request.
+- [ ] Seed Identity roles and add an admin bootstrap flow.
+- [ ] Commit complete Auth and Geo migrations.
+- [ ] Add unit/integration tests and GitHub Actions CI.
+- [ ] Add Redis to `docker-compose.yml` and create an API `Dockerfile`.
+- [ ] Invalidate cache entries on catalog writes.
+- [ ] Move secrets out of `appsettings.json`.
+- [ ] Use geodesic distance instead of the planar approximation.
+- [ ] Add payment, notifications and real-time order tracking modules.
 
-Track planned features in [GitHub Issues](https://github.com/ToshmatovDeveloper/GeoDelivery/issues).
+Planned work is tracked in [GitHub Issues](https://github.com/ToshmatovDeveloper/GeoDelivery/issues).
 
 ---
 
 ## Contributing
 
-1. Fork the repository or create a branch from `main`:
+1. Branch from `main`:
    ```bash
    git checkout -b features/issue-<number>
    ```
-2. Keep changes scoped to one module or concern.
-3. Follow the existing CQRS/DDD layout and add FluentValidation validators for new commands.
+2. Keep a change scoped to one module or concern.
+3. Follow the existing CQRS/DDD structure and add validators for new commands.
 4. Build before opening a pull request:
    ```bash
    dotnet build
    ```
-5. Open a pull request describing the change, the affected module and how it was tested.
-
-The project currently follows a feature-branch workflow: `features/issue-N` → pull request → `main`.
+5. Describe the affected module and how the change was verified.
 
 ---
 
 ## License
 
-No license file is included in this repository yet. Until a license is added, the code is **all rights reserved**; contact the repository owner for permission to use or distribute it.
+No license file is included in this repository yet. Until one is added, the code is **all rights reserved**; contact the repository owner for permission to use or distribute it.
