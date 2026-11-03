@@ -7,6 +7,7 @@ namespace Dispatch.Infrastructure;
 public class DispatchDbContext(DbContextOptions<DispatchDbContext> options) : DbContext(options)
 {
     public DbSet<CourierAssignment> CourierAssignments => Set<CourierAssignment>();
+    public DbSet<DispatchTask> DispatchTasks => Set<DispatchTask>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

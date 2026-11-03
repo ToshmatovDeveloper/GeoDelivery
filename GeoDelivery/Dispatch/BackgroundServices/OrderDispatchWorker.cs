@@ -1,5 +1,7 @@
 ﻿using Dispatch.Application;
+using Dispatch.Infrastructure;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -34,44 +36,50 @@ public class OrderDispatchWorker(
    private async Task ProcessPendingOrdersAsync(CancellationToken cancellationToken)
    {
       using var scope = scopeFactory.CreateAsyncScope();
-      
+   
       var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-      
-      // TODO: Fetch unassigned orders from the Order module or database.
-      // For demonstration, simulating a pending order payload:
-      
-      var pendingOrders = new List<(
-         Guid OrderId, Guid RestaurantId, double Latitude, double Longitude)> { };
+      var dbContext = scope.ServiceProvider.GetRequiredService<DispatchDbContext>();
 
-      foreach (var order in pendingOrders)
+      var pendingTasks = await dbContext.DispatchTasks
+         .Where(t => !t.IsProcessed)
+         .OrderBy(t => t.CreatedAt)
+         .Take(10)
+         .ToListAsync(cancellationToken);
+
+      if (!pendingTasks.Any())
+         return;
+
+      foreach (var task in pendingTasks)
       {
          if (cancellationToken.IsCancellationRequested) break;
-         
-         logger.LogInformation("Processing dispatch for Order ID: {OrderId}", order.OrderId);
-         
+      
+         logger.LogInformation("Processing dispatch for Order ID: {OrderId}", task.OrderId);
+      
          var courierId = await mediator.Send(
-            new FindOptimalCourierQuery(
-               order.RestaurantId, order.Latitude, order.Longitude),
+            new FindOptimalCourierQuery(task.RestaurantId, task.Latitude, task.Longitude),
             cancellationToken);
 
          if (courierId.HasValue)
          {
             var success = await mediator.Send(
-               new AssignCourierCommand(order.OrderId, order.RestaurantId, courierId.Value),
+               new AssignCourierCommand(task.OrderId, task.RestaurantId, courierId.Value),
                cancellationToken);
 
             if (success)
             {
-               logger.LogInformation("Courier {CourierId} assigned to Order {OrderId}", courierId.Value, order.OrderId);
+               task.IsProcessed = true;
+               await dbContext.SaveChangesAsync(cancellationToken);
+
+               logger.LogInformation("Courier {CourierId} assigned to Order {OrderId}", courierId.Value, task.OrderId);
             }
             else
             {
-               logger.LogWarning("Failed to assign courier to Order {OrderId}", order.OrderId);
+               logger.LogWarning("Failed to assign courier to Order {OrderId}", task.OrderId);
             }
          }
          else
          {
-            logger.LogWarning("No available courier found for Order {OrderId}", order.OrderId);
+            logger.LogWarning("No available courier found for Order {OrderId}. Will retry later.", task.OrderId);
          }
       }
    }
