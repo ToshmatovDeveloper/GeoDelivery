@@ -13,6 +13,7 @@ using Catalog.Application.Validation;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Caching;
 using Dispatch.Infrastructure;
+using Dispatch.BackgroundServices;
 using FluentValidation;
 using Geo.Application.Validation;
 using Geo.Infrastructure;
@@ -82,6 +83,8 @@ public static class AppBuilderExtensions
         {
             cfg.RegisterServicesFromAssemblyContaining<CreateRestaurantCommand>();
             cfg.RegisterServicesFromAssemblyContaining<UserRegisterCommand>();
+            cfg.RegisterServicesFromAssemblyContaining<Order.Application.Features.CreateOrderCommand>();
+            cfg.RegisterServicesFromAssemblyContaining<Dispatch.Contract.OrderCreatedIntegrationEventHandler>();
             
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             cfg.AddOpenBehavior(typeof(CachingBehavior<,>));
@@ -93,6 +96,7 @@ public static class AppBuilderExtensions
         services.AddScoped<PostGisGeoService>();
         
         services.AddHostedService<RefreshTokenCleaner>();
+        services.AddHostedService<OrderDispatchWorker>();
         
         return services;
     }
