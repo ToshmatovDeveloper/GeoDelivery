@@ -1,14 +1,9 @@
 ﻿using Dispatch.Domain;
 using Dispatch.Infrastructure;
 using MediatR;
+using Shared.Contracts;
 
 namespace Dispatch.Contract;
-
-public record OrderCreatedIntegrationEvent(
-    Guid OrderId, 
-    Guid RestaurantId, 
-    double Latitude, 
-    double Longitude) : INotification;
 
 public class OrderCreatedIntegrationEventHandler(DispatchDbContext dbContext) 
     : INotificationHandler<OrderCreatedIntegrationEvent>
@@ -18,7 +13,7 @@ public class OrderCreatedIntegrationEventHandler(DispatchDbContext dbContext)
         var dispatchTask = new DispatchTask(
             notification.OrderId, 
             notification.RestaurantId, 
-            notification.Latitude, 
+            notification.Latitude,
             notification.Longitude);
 
         dbContext.DispatchTasks.Add(dispatchTask);

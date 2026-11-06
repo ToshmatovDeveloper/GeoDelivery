@@ -2,6 +2,7 @@
 using Order.Application.Dtos;
 using Order.Domain.ValueObject;
 using Order.Infrastructure;
+using Shared.Contracts;
 
 namespace Order.Application.Features;
 
@@ -14,7 +15,7 @@ public record CreateOrderCommand(
 
 public record CreateOrderResponse(Guid OrderId, string Message);    
 
-public class CreateOrderCommandHandler(OrderDbContext dbContext)
+public class CreateOrderCommandHandler(OrderDbContext dbContext, IMediator mediator)
     : IRequestHandler<CreateOrderCommand, CreateOrderResponse>
 {
     public async Task<CreateOrderResponse> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -37,6 +38,14 @@ public class CreateOrderCommandHandler(OrderDbContext dbContext)
         dbContext.Orders.Add(order);
         
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await mediator.Publish(new OrderCreatedIntegrationEvent(
+            order.Id,
+            order.RestaurantId,
+            request.Latitude,
+            request.Longitude,
+            order.CreatedAt
+        ), cancellationToken);
         
         return new CreateOrderResponse(order.Id, "Order created successfully");
     }
