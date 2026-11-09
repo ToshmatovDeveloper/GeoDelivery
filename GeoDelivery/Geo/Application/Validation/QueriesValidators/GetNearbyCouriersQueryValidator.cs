@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using Geo.Application.Features.RedisGeo;
+using Shared.Contracts;
 
 namespace Geo.Application.Validation.QueriesValidators;
 

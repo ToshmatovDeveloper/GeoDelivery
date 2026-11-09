@@ -4,12 +4,13 @@ using Geo.Application.Features.RedisGeo;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Shared.Contracts;
 
 namespace Geo.Presenters;
 
 [ApiController]
 [Route("api/geo")]
-[Authorize] // Требует авторизации по умолчанию для всех методов, если не указано иное
+[Authorize]
 public class GeoController(IMediator mediator) : ControllerBase
 {
     [HttpPost("zones")]
