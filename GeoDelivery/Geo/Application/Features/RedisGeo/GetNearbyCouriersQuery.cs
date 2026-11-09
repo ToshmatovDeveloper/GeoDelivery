@@ -1,13 +1,9 @@
 ﻿using Geo.Infrastructure.Services;
 using MediatR;
+using Shared.Contracts; 
 
 namespace Geo.Application.Features.RedisGeo;
 
-public record GetNearbyCouriersQuery(
-    double Latitude,
-    double Longitude,
-    double RadiusInKm) : IRequest<List<Guid>>;
-    
 public class GetNearbyCouriersQueryHandler(
     RedisGeoService geoService) : IRequestHandler<GetNearbyCouriersQuery, List<Guid>>
 {

@@ -21,4 +21,8 @@
       <Compile Remove="Infrastructure\Persistence\Migrations\20261004173516_UpdateGeoModel.Designer.cs" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Shared\Shared.csproj" />
+    </ItemGroup>
+
 </Project>
