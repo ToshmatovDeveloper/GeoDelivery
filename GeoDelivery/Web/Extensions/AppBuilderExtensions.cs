@@ -25,6 +25,7 @@ using NetTopologySuite;
 using NetTopologySuite.Geometries;
 using Order.Infrastructure;
 using StackExchange.Redis;
+using Tracking.Infrastructure;
 using Web.Middlewares.Exceptions;
 using Role = Auth.Domain.Role;
 
@@ -69,6 +70,9 @@ public static class AppBuilderExtensions
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
         
         services.AddDbContext<DispatchDbContext>(options =>
+            options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+        
+        services.AddDbContext<TrackingDbContext>(options =>
             options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
 
         services.AddIdentity<User, Role>()
